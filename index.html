@@ -1,72 +1,103 @@
 
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+    <section id="titleScreen" class="title-screen">
+      <div class="title-card">
         <p class="eyebrow">Warm-up Shape Game</p>
         <h1>うしのさくゲーム</h1>
         <p class="hero-copy">
-          ゆっくり動く三頭の牛をうまく誘導して、指定された図形をひと筆の柵で囲もう。
-          図形に近い形で閉じられたらクリアです。
           スタートを押すと、画面の上を三頭の牛がゆっくり動き出します。
           選んだ図形の形で牛たち全員をひとつの柵で囲めたらクリアです。
+          動き回る三頭の牛を、選んだ図形の形でひとつの柵に閉じこめよう。
+          最初に図形を選んで、スタートでゲーム画面へ進みます。
         </p>
       </div>
       <div class="status-card">
         <div class="status-row">
-          <span>ステージ</span>
           <span>選択図形</span>
           <strong id="stageName">円</strong>
+
+        <div class="panel block title-picker">
+          <h2>図形を選ぶ</h2>
+          <div class="shape-grid" id="shapeGrid"></div>
         </div>
         <div class="status-row">
-          <span>クリア数</span>
-          <strong><span id="clearedCount">0</span> / 5</strong>
           <span>成功回数</span>
           <strong><span id="clearedCount">0</span></strong>
         </div>
         <div class="status-row">
           <span>操作</span>
-          <strong>ドラッグ / タッチ</strong>
           <strong>押して描く</strong>
+
+        <div class="title-actions">
+          <button id="startButton" class="primary-button">スタート</button>
         </div>
       </div>
     </header>
+    </section>
+
+    <main class="game-layout">
+    <main id="gameScreen" class="game-layout" hidden>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">In Game</p>
+          <h2 class="game-title">うしのさくゲーム</h2>
+          <p class="hero-copy">
+            押したまま柵を描いて、離した瞬間に判定します。三頭すべてが中に入り、形が近ければクリアです。
+          </p>
+        </div>
+        <div class="status-card">
+          <div class="status-row">
+            <span>選択図形</span>
+            <strong id="stageName">円</strong>
+          </div>
+          <div class="status-row">
+            <span>成功回数</span>
+            <strong><span id="clearedCount">0</span></strong>
+          </div>
+          <div class="status-row">
+            <span>操作</span>
+            <strong>押して描く</strong>
+          </div>
+        </div>
+      </header>
+
       <section class="board-panel">
         <canvas id="gameCanvas" width="960" height="640" aria-label="牛と柵のゲーム画面"></canvas>
         <div class="canvas-overlay">
-          <div class="hint-chip">牛たちをドラッグで導こう</div>
-          <div class="hint-chip">スタート地点へ戻ると柵が閉じます</div>
-          <div class="hint-chip">牛が3頭そろったら囲もう</div>
-          <div class="hint-chip">離すと柵が閉じて判定されます</div>
-        </div>
-      </section>
-
         <section class="panel block">
           <h2>あそびかた</h2>
           <ol>
-            <li>「はじめる」を押すと、スタート地点から柵づくりが始まります。</li>
-            <li>牛たちはゆっくり追いかけてくるので、図形の外側をなぞるように動かします。</li>
-            <li>スタート地点の近くへ戻ると柵が閉じて判定されます。</li>
             <li>まず囲いたい図形を選びます。</li>
             <li>「はじめる」を押すと三頭の牛が動き始めます。</li>
+            <li>タイトル画面で図形を選んでスタートします。</li>
+            <li>ゲーム画面に入ると三頭の牛が動き始めます。</li>
             <li>マウスやタッチで柵を描き、牛を3頭とも囲んだまま離すと判定されます。</li>
           </ol>
         </section>
 
         <section class="panel block">
-          <h2>指定図形</h2>
           <h2>図形を選ぶ</h2>
           <div class="shape-grid" id="shapeGrid"></div>
+          <h2>現在の図形</h2>
+          <p class="message-box">タイトル画面で選んだ図形: <strong id="selectedShapeLabel">円</strong></p>
         </section>
 
         <section class="panel block">
           <h2>メッセージ</h2>
           <p id="messageBox" class="message-box">
-            はじめるを押して、円を囲ってみよう。
             図形を選んで「はじめる」を押すとゲームが始まります。
+            スタートするとここにゲームの案内が表示されます。
           </p>
         </section>
 
         <section class="panel actions">
           <button id="startButton" class="primary-button">はじめる</button>
-          <button id="resetButton" class="secondary-button">このステージをやり直す</button>
           <button id="resetButton" class="secondary-button">牛の動きをリセット</button>
+          <button id="backButton" class="secondary-button">タイトルへ戻る</button>
         </section>
       </aside>
     </main>
