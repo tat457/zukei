@@ -7,7 +7,7 @@
 <style>
 body { margin:0; font-family:sans-serif; text-align:center; }
 #menu { padding:20px; }
-button { margin:5px; padding:10px; font-size:16px; }
+button, select { margin:5px; padding:10px; font-size:16px; }
 canvas { display:none; background:#88cc66; }
 </style>
 </head>
@@ -15,7 +15,15 @@ canvas { display:none; background:#88cc66; }
 
 <div id="menu">
   <h1>牛囲いゲーム</h1>
-  <button onclick="changeShape()">図形: <span id="shapeName">円</span></button>
+
+  <select id="shapeSelect">
+    <option>円</option>
+    <option>三角形</option>
+    <option>四角形</option>
+    <option>台形</option>
+    <option>五角形</option>
+  </select>
+
   <br><br>
   <button onclick="startGame()">スタート</button>
 </div>
@@ -26,19 +34,10 @@ canvas { display:none; background:#88cc66; }
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const shapes = ["円","三角形","四角形","台形","五角形"];
-let shapeIndex = 0;
-
 let cows = [];
 let path = [];
 let fence = null;
 let drawing = false;
-
-// 図形切替
-function changeShape(){
-  shapeIndex = (shapeIndex + 1) % shapes.length;
-  document.getElementById("shapeName").innerText = shapes[shapeIndex];
-}
 
 // 牛生成
 function createCow(){
@@ -82,7 +81,7 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// 牛移動（柵で反射）
+// 牛移動（線でも反射）
 function moveCow(c){
   c.x += c.vx;
   c.y += c.vy;
@@ -91,29 +90,50 @@ function moveCow(c){
   if(c.x<0||c.x>canvas.width) c.vx*=-1;
   if(c.y<0||c.y>canvas.height) c.vy*=-1;
 
-  // 柵との衝突
+  // 描画中の線（path）でも反射
+  reflectFromLine(c, path);
+
+  // 完成した柵でも反射
   if(fence){
-    for(let i=0;i<fence.length;i++){
-      let p1 = fence[i];
-      let p2 = fence[(i+1)%fence.length];
-
-      let dist = pointToSegmentDistance(c.x, c.y, p1.x, p1.y, p2.x, p2.y);
-
-      if(dist < c.radius){
-        // 逆方向へ
-        c.vx *= -1;
-        c.vy *= -1;
-
-        // めり込み防止
-        c.x += c.vx * 3;
-        c.y += c.vy * 3;
-
-        break;
-      }
-    }
+    reflectFromLine(c, fence, true);
   }
 
   c.angle = Math.atan2(c.vy, c.vx);
+}
+
+// 線との反射処理
+function reflectFromLine(c, line, closed=false){
+  if(!line || line.length<2) return;
+
+  for(let i=0;i<line.length-1;i++){
+    let p1 = line[i];
+    let p2 = line[i+1];
+
+    let dist = pointToSegmentDistance(c.x, c.y, p1.x, p1.y, p2.x, p2.y);
+
+    if(dist < c.radius){
+      c.vx *= -1;
+      c.vy *= -1;
+      c.x += c.vx * 3;
+      c.y += c.vy * 3;
+      return;
+    }
+  }
+
+  // 閉じた柵なら最後も判定
+  if(closed){
+    let p1 = line[line.length-1];
+    let p2 = line[0];
+
+    let dist = pointToSegmentDistance(c.x, c.y, p1.x, p1.y, p2.x, p2.y);
+
+    if(dist < c.radius){
+      c.vx *= -1;
+      c.vy *= -1;
+      c.x += c.vx * 3;
+      c.y += c.vy * 3;
+    }
+  }
 }
 
 // 牛描画
