@@ -5,258 +5,230 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>牛囲いゲーム</title>
 <style>
-html, body {
-  margin:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
-  font-family:sans-serif;
-  background:#88cc66;
-}
-#menu {
-  position:fixed;
-  inset:0;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap:14px;
-  background:linear-gradient(#c9f7a5,#88cc66);
-  z-index:10;
-}
-select, button {
-  font-size:18px;
-  padding:12px 16px;
-  border:none;
-  border-radius:12px;
-}
-button { background:#2f7d32; color:white; }
-
-#game { display:none; width:100vw; height:100vh; }
-
-#ui {
-  position:fixed;
-  top:10px;
-  left:10px;
-  background:rgba(255,255,255,0.8);
-  padding:8px 12px;
-  border-radius:8px;
-  font-weight:bold;
-  display:none;
-}
+html,body{margin:0;height:100%;overflow:hidden;font-family:sans-serif;background:#88cc66;}
+#menu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#c9f7a5;}
+button,select{padding:12px;font-size:16px;margin:5px;}
+#game{display:none;}
+#ui{position:fixed;top:10px;left:10px;background:#fff;padding:8px;border-radius:8px;display:none;}
 </style>
 </head>
 <body>
 
 <div id="menu">
-  <h1>牛囲いゲーム</h1>
-  <select id="shapeSelect">
-    <option>円</option>
-    <option>三角形</option>
-    <option>四角形</option>
-    <option>台形</option>
-    <option>五角形</option>
-  </select>
-  <button onclick="startGame()">スタート</button>
+<h1>牛囲いゲーム</h1>
+<select id="shapeSelect">
+<option>円</option>
+<option>三角形</option>
+<option>四角形</option>
+<option>台形</option>
+<option>五角形</option>
+</select>
+<button onclick="startGame()">スタート</button>
 </div>
 
-<div id="ui">図形: <span id="currentShape"></span></div>
+<div id="ui">図形: <span id="shapeName"></span></div>
 
 <canvas id="game"></canvas>
-
-<!-- ★BGM -->
 <audio id="bgm" src="bocjou.mp3" loop></audio>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
 
-let cows=[], path=[], fence=null, drawing=false;
-let selectedShape="";
-let frameCount=0;
+let cows=[],path=[],fence=null,drawing=false,shape="";
+let radius=18;
 
-// 牛
-function createCow(){
-  return {
-    x:Math.random()*window.innerWidth,
-    y:Math.random()*window.innerHeight,
-    vx:(Math.random()-0.5)*2,
-    vy:(Math.random()-0.5)*2,
-    angle:0,
-    radius:18,
-    lastHit:-100
-  };
+// スタート
+function startGame(){
+ shape=document.getElementById("shapeSelect").value;
+ document.getElementById("menu").style.display="none";
+ document.getElementById("ui").style.display="block";
+ document.getElementById("shapeName").innerText=shape;
+
+ canvas.style.display="block";
+ canvas.width=innerWidth;
+ canvas.height=innerHeight;
+
+ cows=[cow(),cow(),cow()];
+
+ document.getElementById("bgm").play().catch(()=>{});
+
+ loop();
 }
 
-function startGame(){
-  selectedShape=document.getElementById("shapeSelect").value;
-
-  document.getElementById("menu").style.display="none";
-  document.getElementById("ui").style.display="block";
-  document.getElementById("currentShape").innerText=selectedShape;
-
-  canvas.style.display="block";
-  canvas.width=window.innerWidth;
-  canvas.height=window.innerHeight;
-
-  cows=[createCow(),createCow(),createCow()];
-
-  // ★BGM再生
-  const bgm=document.getElementById("bgm");
-  bgm.currentTime=0;
-  bgm.play().catch(()=>{});
-
-  requestAnimationFrame(loop);
+// 牛
+function cow(){
+ return {x:Math.random()*innerWidth,y:Math.random()*innerHeight,
+ vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2};
 }
 
 // ループ
 function loop(){
-  frameCount++;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.fillStyle="#88cc66"; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  ctx.fillStyle="#88cc66";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+ if(fence) drawFence();
+ if(path.length>1) drawPath();
 
-  if(fence) drawFence();
-  if(path.length>1) drawPath();
+ cows.forEach(c=>{
+  move(c);
+  drawCow(c);
+ });
 
-  cows.forEach(c=>{
-    moveCow(c);
-    drawCow(c);
-  });
-
-  requestAnimationFrame(loop);
+ requestAnimationFrame(loop);
 }
 
-// 牛移動
-function moveCow(c){
-  c.x+=c.vx;
-  c.y+=c.vy;
+// 移動＋反射
+function move(c){
+ c.x+=c.vx; c.y+=c.vy;
 
-  if(c.x<0||c.x>canvas.width) c.vx*=-1;
-  if(c.y<0||c.y>canvas.height) c.vy*=-1;
+ if(c.x<0||c.x>canvas.width) c.vx*=-1;
+ if(c.y<0||c.y>canvas.height) c.vy*=-1;
 
-  reflect(c,path,false);
-  if(fence) reflect(c,fence,true);
-
-  c.angle=Math.atan2(c.vy,c.vx);
+ reflect(c,path);
+ reflect(c,fence,true);
 }
 
 // 反射
-function reflect(c,line,closed){
-  if(!line||line.length<2) return;
-
-  for(let i=0;i<line.length-1;i++){
-    if(hit(c,line[i],line[i+1])) return;
-  }
-  if(closed){
-    hit(c,line[line.length-1],line[0]);
-  }
+function reflect(c,line,closed=false){
+ if(!line||line.length<2)return;
+ for(let i=0;i<line.length-1;i++){
+  if(hit(c,line[i],line[i+1]))return;
+ }
+ if(closed) hit(c,line[line.length-1],line[0]);
 }
 
-function hit(c,p1,p2){
-  let n=nearest(c.x,c.y,p1.x,p1.y,p2.x,p2.y);
-  let dx=c.x-n.x, dy=c.y-n.y;
-  let d=Math.hypot(dx,dy);
-
-  if(d<c.radius){
-    let nx=dx/(d||1), ny=dy/(d||1);
-    let dot=c.vx*nx+c.vy*ny;
-    c.vx-=2*dot*nx;
-    c.vy-=2*dot*ny;
-    c.x=n.x+nx*(c.radius+1);
-    c.y=n.y+ny*(c.radius+1);
-    return true;
-  }
-  return false;
-}
-
-function nearest(px,py,x1,y1,x2,y2){
-  let t=((px-x1)*(x2-x1)+(py-y1)*(y2-y1))/((x2-x1)**2+(y2-y1)**2||1);
-  t=Math.max(0,Math.min(1,t));
-  return {x:x1+(x2-x1)*t,y:y1+(y2-y1)*t};
+function hit(c,a,b){
+ let t=((c.x-a.x)*(b.x-a.x)+(c.y-a.y)*(b.y-a.y))/((b.x-a.x)**2+(b.y-a.y)**2||1);
+ t=Math.max(0,Math.min(1,t));
+ let x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
+ let dx=c.x-x,dy=c.y-y,d=Math.hypot(dx,dy);
+ if(d<radius){
+  let nx=dx/(d||1),ny=dy/(d||1);
+  let dot=c.vx*nx+c.vy*ny;
+  c.vx-=2*dot*nx;
+  c.vy-=2*dot*ny;
+  return true;
+ }
+ return false;
 }
 
 // 牛描画
 function drawCow(c){
-  ctx.save();
-  ctx.translate(c.x,c.y);
-  ctx.rotate(c.angle);
-
-  ctx.fillStyle="#6b4a32";
-  ctx.beginPath();
-  ctx.ellipse(0,0,24,15,0,0,Math.PI*2);
-  ctx.fill();
-
-  ctx.fillStyle="#5a3d2b";
-  ctx.beginPath();
-  ctx.ellipse(25,0,10,8,0,0,Math.PI*2);
-  ctx.fill();
-
-  ctx.restore();
+ ctx.beginPath();
+ ctx.fillStyle="brown";
+ ctx.arc(c.x,c.y,15,0,Math.PI*2);
+ ctx.fill();
 }
 
 // 描画
 function drawPath(){
-  ctx.strokeStyle="black";
-  ctx.lineWidth=4;
-  ctx.beginPath();
-  ctx.moveTo(path[0].x,path[0].y);
-  path.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.stroke();
+ ctx.strokeStyle="black";
+ ctx.beginPath();
+ ctx.moveTo(path[0].x,path[0].y);
+ path.forEach(p=>ctx.lineTo(p.x,p.y));
+ ctx.stroke();
 }
 
 function drawFence(){
-  ctx.strokeStyle="brown";
-  ctx.lineWidth=5;
-  ctx.beginPath();
-  ctx.moveTo(fence[0].x,fence[0].y);
-  fence.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.closePath();
-  ctx.stroke();
+ ctx.strokeStyle="brown";
+ ctx.beginPath();
+ ctx.moveTo(fence[0].x,fence[0].y);
+ fence.forEach(p=>ctx.lineTo(p.x,p.y));
+ ctx.closePath();
+ ctx.stroke();
 }
 
 // 入力
-canvas.addEventListener("pointerdown",e=>{
-  drawing=true;
-  path=[getPos(e)];
-});
-canvas.addEventListener("pointermove",e=>{
-  if(drawing) path.push(getPos(e));
-});
-canvas.addEventListener("pointerup",endDraw);
+canvas.onpointerdown=e=>{drawing=true;path=[pos(e)];};
+canvas.onpointermove=e=>{if(drawing)path.push(pos(e));};
+canvas.onpointerup=end;
 
-function getPos(e){
-  return {x:e.clientX,y:e.clientY};
+function pos(e){return{x:e.clientX,y:e.clientY};}
+
+// ===== 図形判定 =====
+function end(){
+ drawing=false;
+ if(path.length<10)return;
+
+ if(!checkShape(path,shape)){
+  alert("図形が違います");
+  return;
+ }
+
+ fence=path;
+
+ if(cows.every(c=>inside(c,fence))){
+  alert("クリア！");
+ }
 }
 
-// 図形判定（簡易版）
-function endDraw(){
-  drawing=false;
-  if(path.length<10) return;
+// 円
+function isCircle(p){
+ let cx=avg(p.map(v=>v.x)), cy=avg(p.map(v=>v.y));
+ let rs=p.map(v=>Math.hypot(v.x-cx,v.y-cy));
+ let avgR=avg(rs);
+ let err=avg(rs.map(r=>(r-avgR)**2));
+ return err<300;
+}
 
-  fence=path;
+// 多角形
+function simplify(p,n){
+ return p.filter((_,i)=>i%Math.floor(p.length/n)==0);
+}
 
-  let inside=cows.every(c=>pointInPoly(c,fence));
-  if(inside){
-    alert("クリア！");
-  }
+// 角度
+function angle(a,b,c){
+ let ab=[a.x-b.x,a.y-b.y];
+ let cb=[c.x-b.x,c.y-b.y];
+ let dot=ab[0]*cb[0]+ab[1]*cb[1];
+ let mag=Math.hypot(...ab)*Math.hypot(...cb);
+ return Math.acos(dot/mag)*180/Math.PI;
+}
+
+// 判定
+function checkShape(p,s){
+ if(s==="円") return isCircle(p);
+
+ let n={三角形:3,四角形:4,台形:4,五角形:5}[s];
+ let poly=simplify(p,n);
+
+ if(poly.length<n) return false;
+
+ if(s==="三角形") return poly.length===3;
+
+ if(s==="四角形"){
+  return poly.every((_,i)=>{
+   let a=angle(poly[(i-1+n)%n],poly[i],poly[(i+1)%n]);
+   return Math.abs(a-90)<40;
+  });
+ }
+
+ if(s==="台形"){
+  return true; // 簡易（平行チェック省略）
+ }
+
+ if(s==="五角形"){
+  return poly.length===5;
+ }
+
+ return false;
 }
 
 // 内側判定
-function pointInPoly(p,vs){
-  let inside=false;
-  for(let i=0,j=vs.length-1;i<vs.length;j=i++){
-    let xi=vs[i].x, yi=vs[i].y;
-    let xj=vs[j].x, yj=vs[j].y;
-
-    let intersect=((yi>p.y)!=(yj>p.y)) &&
-      (p.x<(xj-xi)*(p.y-yi)/(yj-yi)+xi);
-    if(intersect) inside=!inside;
-  }
-  return inside;
+function inside(p,vs){
+ let inside=false;
+ for(let i=0,j=vs.length-1;i<vs.length;j=i++){
+  let xi=vs[i].x, yi=vs[i].y;
+  let xj=vs[j].x, yj=vs[j].y;
+  let inter=((yi>p.y)!=(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/(yj-yi)+xi);
+  if(inter) inside=!inside;
+ }
+ return inside;
 }
-</script>
 
+function avg(arr){return arr.reduce((a,b)=>a+b)/arr.length;}
+
+</script>
 </body>
 </html>
