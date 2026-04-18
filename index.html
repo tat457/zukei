@@ -5,10 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>牛囲いゲーム</title>
 <style>
-body { margin:0; font-family:sans-serif; text-align:center; }
-#menu { padding:20px; }
+body { margin:0; font-family:sans-serif; }
+#menu { text-align:center; padding:20px; }
 button, select { margin:5px; padding:10px; font-size:16px; }
 canvas { display:none; background:#88cc66; }
+
+/* ゲーム中UI */
+#ui {
+  position:fixed;
+  top:10px;
+  left:10px;
+  background:rgba(255,255,255,0.8);
+  padding:8px 12px;
+  border-radius:8px;
+  font-weight:bold;
+  display:none;
+}
 </style>
 </head>
 <body>
@@ -28,6 +40,8 @@ canvas { display:none; background:#88cc66; }
   <button onclick="startGame()">スタート</button>
 </div>
 
+<div id="ui">図形: <span id="currentShape"></span></div>
+
 <canvas id="game"></canvas>
 
 <script>
@@ -38,6 +52,7 @@ let cows = [];
 let path = [];
 let fence = null;
 let drawing = false;
+let selectedShape = "";
 
 // 牛生成
 function createCow(){
@@ -52,7 +67,12 @@ function createCow(){
 }
 
 function startGame(){
+  selectedShape = document.getElementById("shapeSelect").value;
+
   document.getElementById("menu").style.display="none";
+  document.getElementById("ui").style.display="block";
+  document.getElementById("currentShape").innerText = selectedShape;
+
   canvas.style.display="block";
 
   canvas.width = window.innerWidth;
@@ -81,27 +101,21 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// 牛移動（線でも反射）
+// 牛移動
 function moveCow(c){
   c.x += c.vx;
   c.y += c.vy;
 
-  // 画面反射
   if(c.x<0||c.x>canvas.width) c.vx*=-1;
   if(c.y<0||c.y>canvas.height) c.vy*=-1;
 
-  // 描画中の線（path）でも反射
   reflectFromLine(c, path);
-
-  // 完成した柵でも反射
-  if(fence){
-    reflectFromLine(c, fence, true);
-  }
+  if(fence) reflectFromLine(c, fence, true);
 
   c.angle = Math.atan2(c.vy, c.vx);
 }
 
-// 線との反射処理
+// 線反射
 function reflectFromLine(c, line, closed=false){
   if(!line || line.length<2) return;
 
@@ -120,7 +134,6 @@ function reflectFromLine(c, line, closed=false){
     }
   }
 
-  // 閉じた柵なら最後も判定
   if(closed){
     let p1 = line[line.length-1];
     let p2 = line[0];
@@ -161,7 +174,7 @@ function drawCow(c){
   ctx.restore();
 }
 
-// 描画中ライン
+// 描画中
 function drawPath(){
   if(path.length<2) return;
   ctx.strokeStyle="black";
@@ -171,7 +184,7 @@ function drawPath(){
   ctx.stroke();
 }
 
-// 柵描画
+// 柵
 function drawFence(){
   if(!fence) return;
   ctx.strokeStyle="brown";
@@ -222,7 +235,7 @@ function endDraw(){
   }
 }
 
-// 点がポリゴン内か
+// 内側判定
 function pointInPolygon(point, vs) {
   let x = point.x, y = point.y;
   let inside = false;
@@ -237,7 +250,7 @@ function pointInPolygon(point, vs) {
   return inside;
 }
 
-// 点と線分距離
+// 距離
 function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
   let A = px - x1;
   let B = py - y1;
@@ -250,13 +263,9 @@ function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
 
   let xx, yy;
 
-  if (param < 0) {
-    xx = x1;
-    yy = y1;
-  } else if (param > 1) {
-    xx = x2;
-    yy = y2;
-  } else {
+  if (param < 0) { xx = x1; yy = y1; }
+  else if (param > 1) { xx = x2; yy = y2; }
+  else {
     xx = x1 + param * C;
     yy = y1 + param * D;
   }
