@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>うしのさくゲーム</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Warm-up Shape Game</p>
+        <h1>うしのさくゲーム</h1>
+        <p class="hero-copy">
+          ゆっくり動く三頭の牛をうまく誘導して、指定された図形をひと筆の柵で囲もう。
+          図形に近い形で閉じられたらクリアです。
+        </p>
+      </div>
+      <div class="status-card">
+        <div class="status-row">
+          <span>ステージ</span>
+          <strong id="stageName">円</strong>
+        </div>
+        <div class="status-row">
+          <span>クリア数</span>
+          <strong><span id="clearedCount">0</span> / 5</strong>
+        </div>
+        <div class="status-row">
+          <span>操作</span>
+          <strong>ドラッグ / タッチ</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <section class="board-panel">
+        <canvas id="gameCanvas" width="960" height="640" aria-label="牛と柵のゲーム画面"></canvas>
+        <div class="canvas-overlay">
+          <div class="hint-chip">牛たちをドラッグで導こう</div>
+          <div class="hint-chip">スタート地点へ戻ると柵が閉じます</div>
+        </div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="panel block">
+          <h2>あそびかた</h2>
+          <ol>
+            <li>「はじめる」を押すと、スタート地点から柵づくりが始まります。</li>
+            <li>牛たちはゆっくり追いかけてくるので、図形の外側をなぞるように動かします。</li>
+            <li>スタート地点の近くへ戻ると柵が閉じて判定されます。</li>
+          </ol>
+        </section>
+
+        <section class="panel block">
+          <h2>指定図形</h2>
+          <div class="shape-grid" id="shapeGrid"></div>
+        </section>
+
+        <section class="panel block">
+          <h2>メッセージ</h2>
+          <p id="messageBox" class="message-box">
+            はじめるを押して、円を囲ってみよう。
+          </p>
+        </section>
+
+        <section class="panel actions">
+          <button id="startButton" class="primary-button">はじめる</button>
+          <button id="resetButton" class="secondary-button">このステージをやり直す</button>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
