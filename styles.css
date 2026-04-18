@@ -38,12 +38,48 @@ body {
   padding: 24px 0 32px;
 }
 
+.title-screen {
+  min-height: calc(100vh - 56px);
+  display: grid;
+  place-items: center;
+}
+
+.title-card {
+  width: min(760px, 100%);
+  padding: 32px;
+  border-radius: 36px;
+  background: rgba(255, 250, 240, 0.82);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.title-picker {
+  margin-top: 24px;
+}
+
+.title-actions {
+  margin-top: 22px;
+}
+
+.title-actions .primary-button {
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 16px 20px;
+}
+
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 20px;
   align-items: stretch;
   margin-bottom: 20px;
+}
+
+.game-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+  line-height: 1.1;
 }
 
 .eyebrow {
@@ -205,6 +241,10 @@ ol {
   gap: 10px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 button {
   appearance: none;
   border: none;
@@ -251,6 +291,11 @@ button:active {
   .page-shell {
     width: min(100% - 20px, 1280px);
     padding-top: 14px;
+  }
+
+  .title-card {
+    padding: 24px 18px;
+    border-radius: 28px;
   }
 
   .shape-grid {
