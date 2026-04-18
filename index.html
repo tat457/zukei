@@ -15,14 +15,9 @@ canvas { display:none; background:#88cc66; }
 
 <div id="menu">
   <h1>牛囲いゲーム</h1>
-  <div>
-    <button onclick="setShape('circle')">円</button>
-    <button onclick="setShape('triangle')">三角形</button>
-    <button onclick="setShape('square')">四角形</button>
-    <button onclick="setShape('trapezoid')">台形</button>
-    <button onclick="setShape('pentagon')">五角形</button>
-  </div>
-  <br>
+
+  <button onclick="changeShape()">図形: <span id="shapeName">円</span></button>
+  <br><br>
   <button onclick="startGame()">スタート</button>
 </div>
 
@@ -32,22 +27,28 @@ canvas { display:none; background:#88cc66; }
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let shape = "circle";
-let cows = [];
-let drawing = false;
-let path = [];
+const shapes = ["円","三角形","四角形","台形","五角形"];
+let shapeIndex = 0;
 
-function setShape(s){
-  shape = s;
+let cows = [];
+let path = [];
+let fence = null;
+let drawing = false;
+
+// 図形切替
+function changeShape(){
+  shapeIndex = (shapeIndex + 1) % shapes.length;
+  document.getElementById("shapeName").innerText = shapes[shapeIndex];
 }
 
-// 牛クラス
+// 牛生成
 function createCow(){
   return {
     x: Math.random()*window.innerWidth,
     y: Math.random()*window.innerHeight,
-    vx: (Math.random()-0.5)*1,
-    vy: (Math.random()-0.5)*1
+    vx: (Math.random()-0.5)*2,
+    vy: (Math.random()-0.5)*2,
+    angle: 0
   };
 }
 
@@ -59,86 +60,136 @@ function startGame(){
   canvas.height = window.innerHeight;
 
   cows = [createCow(), createCow(), createCow()];
-
   requestAnimationFrame(loop);
 }
 
-// 描画ループ
+// メインループ
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   // 草原
-  ctx.fillStyle = "#88cc66";
+  ctx.fillStyle="#88cc66";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // 牛
+  drawFence();
+
   cows.forEach(c=>{
-    c.x += c.vx;
-    c.y += c.vy;
-
-    if(c.x<0||c.x>canvas.width) c.vx*=-1;
-    if(c.y<0||c.y>canvas.height) c.vy*=-1;
-
-    ctx.fillStyle="brown";
-    ctx.beginPath();
-    ctx.arc(c.x,c.y,15,0,Math.PI*2);
-    ctx.fill();
+    moveCow(c);
+    drawCow(c);
   });
 
-  // 描画中の線
-  if(path.length>1){
-    ctx.strokeStyle="black";
-    ctx.beginPath();
-    ctx.moveTo(path[0].x,path[0].y);
-    path.forEach(p=>ctx.lineTo(p.x,p.y));
-    ctx.stroke();
-  }
+  drawPath();
 
   requestAnimationFrame(loop);
 }
 
-// 入力処理
-canvas.addEventListener("mousedown", startDraw);
-canvas.addEventListener("touchstart", startDraw);
+// 牛移動
+function moveCow(c){
+  c.x += c.vx;
+  c.y += c.vy;
 
-canvas.addEventListener("mousemove", draw);
-canvas.addEventListener("touchmove", draw);
+  // 画面反射
+  if(c.x<0||c.x>canvas.width) c.vx*=-1;
+  if(c.y<0||c.y>canvas.height) c.vy*=-1;
 
-canvas.addEventListener("mouseup", endDraw);
-canvas.addEventListener("touchend", endDraw);
+  // 柵反射
+  if(fence && pointInPolygon(c, fence)){
+    c.vx *= -1;
+    c.vy *= -1;
+    c.x += c.vx*2;
+    c.y += c.vy*2;
+  }
+
+  c.angle = Math.atan2(c.vy, c.vx);
+}
+
+// 牛描画（簡易リアル風）
+function drawCow(c){
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.angle);
+
+  // 体
+  ctx.fillStyle="#5a3d2b";
+  ctx.beginPath();
+  ctx.ellipse(0,0,20,12,0,0,Math.PI*2);
+  ctx.fill();
+
+  // 頭
+  ctx.fillStyle="#3d2a1f";
+  ctx.beginPath();
+  ctx.arc(20,0,8,0,Math.PI*2);
+  ctx.fill();
+
+  // 足
+  ctx.strokeStyle="#000";
+  ctx.beginPath();
+  ctx.moveTo(-10,10); ctx.lineTo(-10,20);
+  ctx.moveTo(10,10); ctx.lineTo(10,20);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// 描画中ライン
+function drawPath(){
+  if(path.length<2) return;
+  ctx.strokeStyle="black";
+  ctx.beginPath();
+  ctx.moveTo(path[0].x,path[0].y);
+  path.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.stroke();
+}
+
+// 柵描画
+function drawFence(){
+  if(!fence) return;
+  ctx.strokeStyle="brown";
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.moveTo(fence[0].x,fence[0].y);
+  fence.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// 入力
+canvas.addEventListener("mousedown",startDraw);
+canvas.addEventListener("touchstart",startDraw);
+
+canvas.addEventListener("mousemove",draw);
+canvas.addEventListener("touchmove",draw);
+
+canvas.addEventListener("mouseup",endDraw);
+canvas.addEventListener("touchend",endDraw);
 
 function getPos(e){
   if(e.touches){
-    return {
-      x:e.touches[0].clientX,
-      y:e.touches[0].clientY
-    };
+    return {x:e.touches[0].clientX,y:e.touches[0].clientY};
   }
   return {x:e.clientX,y:e.clientY};
 }
 
 function startDraw(e){
-  drawing = true;
-  path = [];
+  drawing=true;
+  path=[];
 }
 
 function draw(e){
   if(!drawing) return;
-  const pos = getPos(e);
-  path.push(pos);
+  path.push(getPos(e));
 }
 
 function endDraw(){
   drawing=false;
-
-  // 判定（簡易：全牛がポリゴン内か）
   if(path.length<3) return;
 
-  let insideAll = cows.every(c=>pointInPolygon(c, path));
+  fence = path;
 
+  // クリア判定
+  let insideAll = cows.every(c=>pointInPolygon(c, fence));
   if(insideAll){
-    alert("クリア！");
-    location.reload();
+    setTimeout(()=>alert("クリア！"),100);
   }
 }
 
