@@ -1,11 +1,4 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
 
-const stageName = document.getElementById("stageName");
-const clearedCount = document.getElementById("clearedCount");
-const messageBox = document.getElementById("messageBox");
-const startButton = document.getElementById("startButton");
-const resetButton = document.getElementById("resetButton");
 const shapeGrid = document.getElementById("shapeGrid");
 
 const TAU = Math.PI * 2;
@@ -15,6 +8,15 @@ const START_OFFSET = { x: 0, y: -210 };
 const CLOSE_DISTANCE = 34;
 const MIN_PATH_POINTS = 110;
 const PATH_MIN_DISTANCE = 5;
+const MIN_PATH_POINTS = 48;
+const PATH_MIN_DISTANCE = 6;
+const COW_RADIUS = 26;
+const PLAY_AREA = {
+  minX: 90,
+  maxX: canvas.width - 90,
+  minY: 120,
+  maxY: canvas.height - 86
+};
 
 const stages = [
   { key: "circle", label: "円", sides: 0, radialVarianceMax: 0.16, cornerRange: [0, 2] },
@@ -22,19 +24,30 @@ const stages = [
   { key: "square", label: "四角", sides: 4, radialVarianceMax: 0.28, cornerRange: [4, 6] },
   { key: "trapezoid", label: "台形", sides: 4, radialVarianceMax: 0.35, cornerRange: [4, 6], asymmetryMin: 0.06 },
   { key: "pentagon", label: "五角形", sides: 5, radialVarianceMax: 0.28, cornerRange: [5, 7] }
+const shapes = [
+  { key: "circle", label: "円", sides: 0, radialVarianceMax: 0.18, cornerRange: [0, 2] },
+  { key: "triangle", label: "三角", sides: 3, radialVarianceMax: 0.34, cornerRange: [2, 4] },
+  { key: "square", label: "四角", sides: 4, radialVarianceMax: 0.3, cornerRange: [3, 5] },
+  { key: "trapezoid", label: "台形", sides: 4, radialVarianceMax: 0.36, cornerRange: [3, 5], asymmetryMin: 0.08 },
+  { key: "pentagon", label: "五角形", sides: 5, radialVarianceMax: 0.3, cornerRange: [4, 6] }
 ];
 
 const state = {
   stageIndex: 0,
   cleared: new Set(),
   allClear: false,
+  selectedShapeKey: "circle",
+  successfulRounds: 0,
   running: false,
   pointerActive: false,
+  drawing: false,
   attemptFinished: false,
   pointer: { ...STAGE_CENTER },
   startPoint: null,
   herdLead: null,
+  pointer: null,
   fencePath: [],
+  lastSampledPoint: null,
   cows: [],
   lastSampledPoint: null,
   lastTime: performance.now()
@@ -76,6 +89,8 @@ function buildTargetPoints(stage) {
   }
 
   return polygon;
+function setMessage(text) {
+  messageBox.textContent = text;
 }
 
 stages.forEach((stage) => {
@@ -88,16 +103,23 @@ function createCows(startPoint) {
     { x: startPoint.x - 22, y: startPoint.y + 20, hue: "#f7efe3", patch: "#7a4a25" },
     { x: startPoint.x + 24, y: startPoint.y + 14, hue: "#fff1d5", patch: "#8d5934" }
   ];
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function setMessage(text) {
   messageBox.textContent = text;
+function lerp(a, b, t) {
+  return a + (b - a) * t;
 }
 
 function getStartPoint() {
+function clampPoint(point) {
   return {
     x: STAGE_CENTER.x + START_OFFSET.x,
     y: STAGE_CENTER.y + START_OFFSET.y
+    x: Math.max(24, Math.min(canvas.width - 24, point.x)),
+    y: Math.max(24, Math.min(canvas.height - 24, point.y))
   };
 }
 
@@ -119,6 +141,15 @@ function resetStage({ keepMessage = false } = {}) {
     setMessage(`${stages[state.stageIndex].label}を囲う準備ができました。「はじめる」でスタートできます。`);
   }
   renderShapePills();
+function canvasPointFromEvent(event) {
+  const rect = canvas.getBoundingClientRect();
+  const source = event.touches ? event.touches[0] : event;
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return clampPoint({
+    x: (source.clientX - rect.left) * scaleX,
+    y: (source.clientY - rect.top) * scaleY
+  });
 }
 
 function startStage() {
@@ -131,9 +162,12 @@ function startStage() {
   state.fencePath.push({ ...state.startPoint });
   state.lastSampledPoint = { ...state.startPoint };
   setMessage(`${stages[state.stageIndex].label}の外側をなぞりながら、スタート地点へ戻って柵を閉じよう。`);
+function getSelectedShape() {
+  return shapes.find((shape) => shape.key === state.selectedShapeKey);
 }
 
 function renderShapePills() {
+function renderShapeButtons() {
   shapeGrid.innerHTML = "";
   stages.forEach((stage, index) => {
     const pill = document.createElement("div");
@@ -143,9 +177,32 @@ function renderShapePills() {
     }
     if (state.cleared.has(stage.key)) {
       pill.classList.add("done");
+
+  shapes.forEach((shape) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "shape-pill";
+    button.textContent = shape.label;
+
+    if (shape.key === state.selectedShapeKey) {
+      button.classList.add("active");
     }
     pill.textContent = stage.label;
     shapeGrid.appendChild(pill);
+
+    button.addEventListener("click", () => {
+      state.selectedShapeKey = shape.key;
+      stageName.textContent = shape.label;
+      renderShapeButtons();
+
+      if (!state.running) {
+        setMessage(`${shape.label}を選びました。「はじめる」を押すと三頭の牛が動き出します。`);
+      } else {
+        setMessage(`図形を${shape.label}に変更しました。必要なら「牛の動きをリセット」でやり直せます。`);
+      }
+    });
+
+    shapeGrid.appendChild(button);
   });
 }
 
@@ -158,11 +215,19 @@ function canvasPointFromEvent(event) {
     x: (source.clientX - rect.left) * scaleX,
     y: (source.clientY - rect.top) * scaleY
   };
+function createCow(x, y, vx, vy, hue, patch) {
+  return { x, y, vx, vy, hue, patch };
 }
 
 function setPointer(event) {
   const point = canvasPointFromEvent(event);
   state.pointer = clampPoint(point);
+function createCows() {
+  return [
+    createCow(300, 220, 58, 38, "#fff7f0", "#5b3824"),
+    createCow(520, 310, -46, 42, "#f7efe3", "#7a4a25"),
+    createCow(680, 210, 52, -34, "#fff1d5", "#8d5934")
+  ];
 }
 
 function clampPoint(point) {
@@ -171,82 +236,131 @@ function clampPoint(point) {
     y: Math.max(40, Math.min(canvas.height - 40, point.y))
   };
 }
+function resetRound({ keepMessage = false } = {}) {
+  state.running = false;
+  state.drawing = false;
+  state.attemptFinished = false;
+  state.pointer = null;
+  state.fencePath = [];
+  state.lastSampledPoint = null;
+  state.cows = [];
+  stageName.textContent = getSelectedShape().label;
+  clearedCount.textContent = String(state.successfulRounds);
+  renderShapeButtons();
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
+  if (!keepMessage) {
+    setMessage(`${getSelectedShape().label}を選択中です。「はじめる」を押して牛を動かそう。`);
+  }
 }
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+function startRound() {
+  state.running = true;
+  state.drawing = false;
+  state.attemptFinished = false;
+  state.pointer = null;
+  state.fencePath = [];
+  state.lastSampledPoint = null;
+  state.cows = createCows();
+  setMessage(`${getSelectedShape().label}の形を意識して、三頭ともまとめて囲ってみよう。`);
 }
 
 function pointInPolygon(point, polygon) {
   let inside = false;
+
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
     const xi = polygon[i].x;
     const yi = polygon[i].y;
     const xj = polygon[j].x;
     const yj = polygon[j].y;
     const intersect =
+    const intersects =
       yi > point.y !== yj > point.y &&
       point.x < ((xj - xi) * (point.y - yi)) / (yj - yi + 0.00001) + xi;
     if (intersect) {
+
+    if (intersects) {
       inside = !inside;
     }
   }
+
   return inside;
+}
+
+function measureHorizontalWidth(path, sampleY) {
+  const xs = [];
+
+  for (let i = 0; i < path.length; i += 1) {
+    const current = path[i];
+    const next = path[(i + 1) % path.length];
+    const crosses = (current.y <= sampleY && next.y >= sampleY) || (current.y >= sampleY && next.y <= sampleY);
+
+    if (!crosses || current.y === next.y) {
+      continue;
+    }
+
+    const t = (sampleY - current.y) / (next.y - current.y);
+    xs.push(lerp(current.x, next.x, t));
+  }
+
+  if (xs.length < 2) {
+    return 0;
+  }
+
+  xs.sort((a, b) => a - b);
+  return xs[xs.length - 1] - xs[0];
+}
+
+function simplifyPath(path) {
+  const simplified = [];
+
+  for (const point of path) {
+    if (simplified.length === 0 || distance(point, simplified[simplified.length - 1]) >= 8) {
+      simplified.push(point);
+    }
+  }
+
+  return simplified;
 }
 
 function analyzePath(path) {
   const centroid = path.reduce(
     (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
-    { x: 0, y: 0 }
-  );
-  centroid.x /= path.length;
-  centroid.y /= path.length;
-
-  const distances = path.map((point) => distance(point, centroid));
-  const meanRadius = distances.reduce((sum, value) => sum + value, 0) / distances.length;
-  const radialVariance =
-    distances.reduce((sum, value) => sum + Math.abs(value - meanRadius), 0) / distances.length / meanRadius;
-
-  let corners = 0;
-  for (let i = 1; i < path.length - 1; i += 1) {
-    const prev = path[i - 1];
-    const current = path[i];
-    const next = path[i + 1];
-    const v1 = { x: current.x - prev.x, y: current.y - prev.y };
     const v2 = { x: next.x - current.x, y: next.y - current.y };
     const mag1 = Math.hypot(v1.x, v1.y);
     const mag2 = Math.hypot(v2.x, v2.y);
+
     if (mag1 < 0.0001 || mag2 < 0.0001) {
       continue;
     }
+
     const dot = (v1.x * v2.x + v1.y * v2.y) / (mag1 * mag2);
     const angle = Math.acos(Math.max(-1, Math.min(1, dot)));
     if (angle > 0.6) {
+
+    if (angle > 0.75) {
       corners += 1;
     }
   }
-
-  const bounds = path.reduce(
-    (acc, point) => ({
-      minX: Math.min(acc.minX, point.x),
-      maxX: Math.max(acc.maxX, point.x),
-      minY: Math.min(acc.minY, point.y),
-      maxY: Math.max(acc.maxY, point.y)
     }),
     { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
   );
+
   const width = bounds.maxX - bounds.minX;
   const topWidth = measureHorizontalWidth(path, bounds.minY + (bounds.maxY - bounds.minY) * 0.18);
   const bottomWidth = measureHorizontalWidth(path, bounds.minY + (bounds.maxY - bounds.minY) * 0.82);
+  const topWidth = measureHorizontalWidth(path, bounds.minY + (bounds.maxY - bounds.minY) * 0.2);
+  const bottomWidth = measureHorizontalWidth(path, bounds.minY + (bounds.maxY - bounds.minY) * 0.8);
   const asymmetry = width > 0 ? Math.abs(bottomWidth - topWidth) / width : 0;
 
   return {
     centroid,
     radialVariance,
     cornerEstimate: Math.round(corners / 8),
+    cornerEstimate: Math.round(corners / 6),
     asymmetry
   };
 }
@@ -279,12 +393,16 @@ function simplifyPath(path) {
   }
   return simplified;
 }
+function evaluateFence() {
+  state.drawing = false;
+  state.attemptFinished = true;
 
 function evaluateFence() {
   if (state.fencePath.length < MIN_PATH_POINTS) {
     setMessage("まだ柵が短いみたい。もう少し大きく図形のまわりを囲ってみよう。");
     state.attemptFinished = true;
     state.running = false;
+    setMessage("柵が短すぎます。牛をぐるっと大きく囲うように描いてみよう。");
     return;
   }
 
@@ -292,11 +410,15 @@ function evaluateFence() {
   const simplified = simplifyPath(closedPath);
   const stage = stages[state.stageIndex];
   const insideCenter = pointInPolygon(STAGE_CENTER, simplified);
+  const selectedShape = getSelectedShape();
+  const enclosedCount = state.cows.filter((cow) => pointInPolygon(cow, simplified)).length;
 
   if (!insideCenter) {
     setMessage("図形の中心が柵の外にあります。図形をしっかり包むように囲ってみよう。");
     state.attemptFinished = true;
     state.running = false;
+  if (enclosedCount < 3) {
+    setMessage(`牛を${enclosedCount}頭しか囲えていません。3頭まとめて中に入るように描いてみよう。`);
     return;
   }
 
@@ -305,10 +427,20 @@ function evaluateFence() {
     analysis.cornerEstimate >= stage.cornerRange[0] && analysis.cornerEstimate <= stage.cornerRange[1];
   const radialOk = analysis.radialVariance <= stage.radialVarianceMax;
   const asymmetryOk = stage.key !== "trapezoid" || analysis.asymmetry >= stage.asymmetryMin;
+    analysis.cornerEstimate >= selectedShape.cornerRange[0] &&
+    analysis.cornerEstimate <= selectedShape.cornerRange[1];
+  const radialOk = analysis.radialVariance <= selectedShape.radialVarianceMax;
+  const asymmetryOk = selectedShape.key !== "trapezoid" || analysis.asymmetry >= selectedShape.asymmetryMin;
 
   if (cornersOk && radialOk && asymmetryOk) {
     state.cleared.add(stage.key);
     clearedCount.textContent = String(state.cleared.size);
+    state.successfulRounds += 1;
+    clearedCount.textContent = String(state.successfulRounds);
+    setMessage(`${selectedShape.label}で3頭とも囲えました。クリアです。もう一度遊ぶなら「はじめる」で再挑戦できます。`);
+    state.running = false;
+    return;
+  }
 
     if (state.stageIndex === stages.length - 1) {
       state.allClear = true;
@@ -319,6 +451,12 @@ function evaluateFence() {
       state.stageIndex += 1;
       resetStage({ keepMessage: true });
     }
+  if (!radialOk && selectedShape.key === "circle") {
+    setMessage("3頭は囲えていますが、円らしさが足りません。もっと丸くなめらかに描いてみよう。");
+  } else if (!cornersOk) {
+    setMessage(`3頭は囲えていますが、${selectedShape.label}の角の数が少し違います。角を意識して描いてみよう。`);
+  } else if (!asymmetryOk) {
+    setMessage("3頭は囲えていますが、台形らしさが足りません。上辺より下辺を少し長めにしてみよう。");
   } else {
     let tip = `${stage.label}らしさが少し足りませんでした。`;
     if (!radialOk && stage.key === "circle") {
@@ -331,11 +469,28 @@ function evaluateFence() {
       tip += " 図形の外側をもう少し安定してなぞってみよう。";
     }
     setMessage(tip);
+    setMessage(`3頭は囲えていますが、${selectedShape.label}の形にもう少し近づけるとクリアです。`);
   }
+}
+
+function updateCows(delta) {
+  state.cows.forEach((cow) => {
+    cow.x += cow.vx * delta;
+    cow.y += cow.vy * delta;
 
   state.attemptFinished = true;
   state.running = false;
   renderShapePills();
+    if (cow.x <= PLAY_AREA.minX || cow.x >= PLAY_AREA.maxX) {
+      cow.vx *= -1;
+      cow.x = Math.max(PLAY_AREA.minX, Math.min(PLAY_AREA.maxX, cow.x));
+    }
+
+    if (cow.y <= PLAY_AREA.minY || cow.y >= PLAY_AREA.maxY) {
+      cow.vy *= -1;
+      cow.y = Math.max(PLAY_AREA.minY, Math.min(PLAY_AREA.maxY, cow.y));
+    }
+  });
 }
 
 function update(delta) {
@@ -357,66 +512,88 @@ function update(delta) {
       cow.x = lerp(cow.x, target.x, cowStep);
       cow.y = lerp(cow.y, target.y, cowStep);
     });
+  if (!state.running) {
+    return;
+  }
 
     if (!state.lastSampledPoint || distance(state.herdLead, state.lastSampledPoint) >= PATH_MIN_DISTANCE) {
       state.fencePath.push({ x: state.herdLead.x, y: state.herdLead.y });
       state.lastSampledPoint = { x: state.herdLead.x, y: state.herdLead.y };
     }
+  updateCows(delta);
 
     const closeReady =
       state.fencePath.length >= MIN_PATH_POINTS &&
       distance(state.herdLead, state.startPoint) <= CLOSE_DISTANCE;
+  if (!state.drawing || !state.pointer) {
+    return;
+  }
 
     if (closeReady) {
       evaluateFence();
     }
+  if (!state.lastSampledPoint || distance(state.pointer, state.lastSampledPoint) >= PATH_MIN_DISTANCE) {
+    state.fencePath.push({ x: state.pointer.x, y: state.pointer.y });
+    state.lastSampledPoint = { x: state.pointer.x, y: state.pointer.y };
   }
 }
 
-function drawBackground() {
-  const horizonY = canvas.height * 0.62;
-  ctx.fillStyle = "#f7f1d7";
-  ctx.fillRect(0, horizonY - 12, canvas.width, canvas.height - horizonY + 12);
-
-  ctx.fillStyle = "rgba(149, 200, 106, 0.32)";
-  for (let i = 0; i < 14; i += 1) {
-    const x = (i / 13) * canvas.width;
-    ctx.beginPath();
-    ctx.arc(x, canvas.height - 6, 90 + (i % 4) * 18, Math.PI, TAU);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = "#ffffff";
-  drawCloud(150, 90, 1);
-  drawCloud(720, 116, 1.2);
-}
-
-function drawCloud(x, y, scale) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(scale, scale);
-  ctx.beginPath();
-  ctx.arc(0, 0, 24, 0, TAU);
-  ctx.arc(26, -12, 28, 0, TAU);
-  ctx.arc(58, 0, 22, 0, TAU);
-  ctx.arc(30, 10, 30, 0, TAU);
-  ctx.fill();
   ctx.restore();
 }
 
 function drawTargetShape() {
   const stage = stages[state.stageIndex];
   const points = stage.targetPoints;
+function drawTargetPreview() {
+  const shape = getSelectedShape();
+  const center = { x: canvas.width - 128, y: 120 };
+  const radius = 58;
 
   ctx.save();
   ctx.strokeStyle = "#2c65aa";
   ctx.fillStyle = "rgba(44, 101, 170, 0.18)";
+  ctx.strokeStyle = "#2c65aa";
   ctx.lineWidth = 4;
   ctx.setLineDash([10, 10]);
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i += 1) {
     ctx.lineTo(points[i].x, points[i].y);
+  ctx.setLineDash([8, 8]);
+
+  if (shape.key === "circle") {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    const points = [];
+
+    if (shape.key === "trapezoid") {
+      points.push(
+        { x: center.x - radius * 0.55, y: center.y - radius * 0.75 },
+        { x: center.x + radius * 0.55, y: center.y - radius * 0.75 },
+        { x: center.x + radius * 0.92, y: center.y + radius * 0.8 },
+        { x: center.x - radius * 0.92, y: center.y + radius * 0.8 }
+      );
+    } else {
+      for (let i = 0; i < shape.sides; i += 1) {
+        const angle = (i / shape.sides) * TAU - Math.PI / 2;
+        points.push({
+          x: center.x + Math.cos(angle) * radius,
+          y: center.y + Math.sin(angle) * radius
+        });
+      }
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
   ctx.closePath();
   ctx.fill();
@@ -435,43 +612,28 @@ function drawStartPoint() {
   ctx.stroke();
 
   ctx.fillStyle = "#8f4f18";
+  ctx.setLineDash([]);
+  ctx.fillStyle = "#2c65aa";
   ctx.font = '700 18px "Zen Maru Gothic"';
   ctx.textAlign = "center";
   ctx.fillText("START", state.startPoint.x, state.startPoint.y - 24);
+  ctx.fillText(`お題: ${shape.label}`, center.x, center.y + 90);
   ctx.restore();
 }
 
-function drawFence() {
-  if (state.fencePath.length === 0) {
-    return;
-  }
-
-  ctx.save();
-  ctx.strokeStyle = "#7d5230";
-  ctx.lineWidth = 7;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(state.fencePath[0].x, state.fencePath[0].y);
-  for (let i = 1; i < state.fencePath.length; i += 1) {
-    ctx.lineTo(state.fencePath[i].x, state.fencePath[i].y);
-  }
-  if (state.attemptFinished) {
-    ctx.closePath();
   }
   ctx.stroke();
 
   ctx.strokeStyle = "rgba(255,255,255,0.48)";
+  if (state.attemptFinished) {
+    ctx.fillStyle = "rgba(125, 82, 48, 0.1)";
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(state.fencePath[0].x, state.fencePath[0].y);
-  for (let i = 1; i < state.fencePath.length; i += 1) {
-    ctx.lineTo(state.fencePath[i].x, state.fencePath[i].y);
-  }
-  if (state.attemptFinished) {
-    ctx.closePath();
-  }
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -485,23 +647,39 @@ function drawCows() {
     ctx.fillStyle = cow.hue;
     ctx.strokeStyle = "#56331a";
     ctx.lineWidth = 2.2;
+function drawCow(cow) {
+  ctx.save();
+  ctx.translate(cow.x, cow.y);
+  ctx.rotate(Math.atan2(cow.vy, cow.vx) * 0.2);
 
     ctx.beginPath();
     ctx.ellipse(0, 0, 26, 18, 0, 0, TAU);
     ctx.fill();
     ctx.stroke();
+  ctx.fillStyle = cow.hue;
+  ctx.strokeStyle = "#56331a";
+  ctx.lineWidth = 2.2;
 
     ctx.fillStyle = cow.patch;
     ctx.beginPath();
     ctx.ellipse(-8, -2, 8, 6, 0.25, 0, TAU);
     ctx.ellipse(7, 5, 7, 5, -0.45, 0, TAU);
     ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 26, 18, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
 
     ctx.fillStyle = cow.hue;
     ctx.beginPath();
     ctx.ellipse(22, -4, 11, 9, 0, 0, TAU);
     ctx.fill();
     ctx.stroke();
+  ctx.fillStyle = cow.patch;
+  ctx.beginPath();
+  ctx.ellipse(-8, -2, 8, 6, 0.25, 0, TAU);
+  ctx.ellipse(7, 5, 7, 5, -0.45, 0, TAU);
+  ctx.fill();
 
     ctx.beginPath();
     ctx.moveTo(26, -12);
@@ -511,11 +689,24 @@ function drawCows() {
     ctx.lineTo(14, -20);
     ctx.lineTo(10, -10);
     ctx.stroke();
+  ctx.fillStyle = cow.hue;
+  ctx.beginPath();
+  ctx.ellipse(22, -4, 11, 9, 0, 0, TAU);
+  ctx.fill();
+  ctx.stroke();
 
     ctx.fillStyle = "#2c1f16";
     ctx.beginPath();
     ctx.arc(26, -5, 1.7, 0, TAU);
     ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(26, -12);
+  ctx.lineTo(24, -20);
+  ctx.lineTo(20, -10);
+  ctx.moveTo(16, -12);
+  ctx.lineTo(14, -20);
+  ctx.lineTo(10, -10);
+  ctx.stroke();
 
     ctx.strokeStyle = "#56331a";
     ctx.lineWidth = 3;
@@ -525,27 +716,59 @@ function drawCows() {
       ctx.lineTo(legX, 28);
       ctx.stroke();
     });
+  ctx.fillStyle = "#2c1f16";
+  ctx.beginPath();
+  ctx.arc(26, -5, 1.7, 0, TAU);
+  ctx.fill();
 
+  ctx.strokeStyle = "#56331a";
+  ctx.lineWidth = 3;
+  [-14, -4, 8, 16].forEach((legX) => {
     ctx.beginPath();
     ctx.moveTo(-26, -6);
     ctx.quadraticCurveTo(-38, -16, -38, -30);
+    ctx.moveTo(legX, 16);
+    ctx.lineTo(legX, 28);
     ctx.stroke();
     ctx.restore();
   });
+
+  ctx.beginPath();
+  ctx.moveTo(-26, -6);
+  ctx.quadraticCurveTo(-38, -16, -38, -30);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCows() {
+  state.cows.forEach(drawCow);
 }
 
 function drawPointerGuide() {
   if (!state.running) {
+function drawIdleGuide() {
+  if (state.running) {
     return;
   }
+
   ctx.save();
   ctx.strokeStyle = "rgba(207, 122, 47, 0.38)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
+  ctx.strokeStyle = "rgba(125, 82, 48, 0.12)";
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 10]);
   ctx.beginPath();
   ctx.moveTo(state.herdLead.x, state.herdLead.y);
   ctx.lineTo(state.pointer.x, state.pointer.y);
+  ctx.roundRect(70, 220, 420, 120, 22);
+  ctx.fill();
   ctx.stroke();
+
+  ctx.fillStyle = "#6c5b45";
+  ctx.font = '700 24px "Zen Maru Gothic"';
+  ctx.fillText("図形を選んで「はじめる」を押そう", 100, 268);
+  ctx.font = '500 18px "Zen Maru Gothic"';
+  ctx.fillText("牛が3頭あらわれたら、押したまま囲って離すだけです。", 100, 305);
   ctx.restore();
 }
 
@@ -554,22 +777,49 @@ function render() {
   drawBackground();
   drawTargetShape();
   drawStartPoint();
+  drawTargetPreview();
   drawFence();
   drawPointerGuide();
   drawCows();
+  drawIdleGuide();
 }
 
 function tick(now) {
-  const delta = Math.min(0.05, (now - state.lastTime) / 1000);
-  state.lastTime = now;
-  update(delta);
-  render();
   requestAnimationFrame(tick);
+}
+
+function beginDrawing(event) {
+  if (!state.running) {
+    return;
+  }
+
+  state.drawing = true;
+  state.attemptFinished = false;
+  state.pointer = canvasPointFromEvent(event);
+  state.fencePath = [{ ...state.pointer }];
+  state.lastSampledPoint = { ...state.pointer };
+}
+
+function moveDrawing(event) {
+  if (!state.drawing) {
+    return;
+  }
+
+  state.pointer = canvasPointFromEvent(event);
+}
+
+function endDrawing() {
+  if (!state.drawing) {
+    return;
+  }
+
+  evaluateFence();
 }
 
 canvas.addEventListener("mousedown", (event) => {
   state.pointerActive = true;
   setPointer(event);
+  beginDrawing(event);
 });
 
 canvas.addEventListener("mousemove", (event) => {
@@ -577,10 +827,12 @@ canvas.addEventListener("mousemove", (event) => {
     return;
   }
   setPointer(event);
+  moveDrawing(event);
 });
 
 window.addEventListener("mouseup", () => {
   state.pointerActive = false;
+  endDrawing();
 });
 
 canvas.addEventListener(
@@ -589,11 +841,10 @@ canvas.addEventListener(
     event.preventDefault();
     state.pointerActive = true;
     setPointer(event);
+    beginDrawing(event);
   },
   { passive: false }
 );
-
-canvas.addEventListener(
   "touchmove",
   (event) => {
     event.preventDefault();
@@ -601,12 +852,14 @@ canvas.addEventListener(
       return;
     }
     setPointer(event);
+    moveDrawing(event);
   },
   { passive: false }
 );
 
 window.addEventListener("touchend", () => {
   state.pointerActive = false;
+  endDrawing();
 });
 
 startButton.addEventListener("click", () => {
@@ -616,6 +869,7 @@ startButton.addEventListener("click", () => {
     state.allClear = false;
   }
   startStage();
+  startRound();
 });
 
 resetButton.addEventListener("click", () => {
@@ -625,7 +879,10 @@ resetButton.addEventListener("click", () => {
     state.allClear = false;
   }
   resetStage();
+  resetRound();
 });
 
 resetStage();
+renderShapeButtons();
+resetRound();
 requestAnimationFrame(tick);
