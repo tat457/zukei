@@ -1,98 +1,162 @@
-
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>牛囲いゲーム</title>
+<style>
+body { margin:0; font-family:sans-serif; text-align:center; }
+#menu { padding:20px; }
+button { margin:5px; padding:10px; font-size:16px; }
+canvas { display:none; background:#88cc66; }
+</style>
 </head>
 <body>
-  <div class="page-shell">
-    <header class="hero">
-      <div>
-    <section id="titleScreen" class="title-screen">
-      <div class="title-card">
-        <p class="eyebrow">Warm-up Shape Game</p>
-        <h1>うしのさくゲーム</h1>
-       
-      </div>
-      <div class="status-card">
-        <div class="status-row">
-          <span>選択図形</span>
-          <strong id="stageName">円</strong>
 
-        <div class="panel block title-picker">
-          <h2>図形を選ぶ</h2>
-          <div class="shape-grid" id="shapeGrid"></div>
-        </div>
-        <div class="status-row">
-          <span>成功回数</span>
-          <strong><span id="clearedCount">0</span></strong>
-        </div>
-        <div class="status-row">
-          <span>操作</span>
-          <strong>押して描く</strong>
+<div id="menu">
+  <h1>牛囲いゲーム</h1>
+  <div>
+    <button onclick="setShape('circle')">円</button>
+    <button onclick="setShape('triangle')">三角形</button>
+    <button onclick="setShape('square')">四角形</button>
+    <button onclick="setShape('trapezoid')">台形</button>
+    <button onclick="setShape('pentagon')">五角形</button>
+  </div>
+  <br>
+  <button onclick="startGame()">スタート</button>
+</div>
 
-        <div class="title-actions">
-          <button id="startButton" class="primary-button">スタート</button>
-        </div>
-      </div>
-    </header>
-    </section>
+<canvas id="game"></canvas>
 
-    <main class="game-layout">
-    <main id="gameScreen" class="game-layout" hidden>
-      <header class="hero">
-        <div>
-          <p class="eyebrow">In Game</p>
-          <h2 class="game-title">うしのさくゲーム</h2>
-          <p class="hero-copy">
-            押したまま柵を描いて、離した瞬間に判定します。三頭すべてが中に入り、形が近ければクリアです。
-          </p>
-        </div>
-        <div class="status-card">
-          <div class="status-row">
-            <span>選択図形</span>
-            <strong id="stageName">円</strong>
-          </div>
-          <div class="status-row">
-            <span>成功回数</span>
-            <strong><span id="clearedCount">0</span></strong>
-          </div>
-          <div class="status-row">
-            <span>操作</span>
-            <strong>押して描く</strong>
-          </div>
-        </div>
-      </header>
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-      <section class="board-panel">
-        <canvas id="gameCanvas" width="960" height="640" aria-label="牛と柵のゲーム画面"></canvas>
-        <div class="canvas-overlay">
-        <section class="panel block">
-          <h2>あそびかた</h2>
-          <ol>
-            <li>まず囲いたい図形を選びます。</li>
-            <li>「はじめる」を押すと三頭の牛が動き始めます。</li>
-            <li>タイトル画面で図形を選んでスタートします。</li>
-            <li>ゲーム画面に入ると三頭の牛が動き始めます。</li>
-            <li>マウスやタッチで柵を描き、牛を3頭とも囲んだまま離すと判定されます。</li>
-          </ol>
-        </section>
+let shape = "circle";
+let cows = [];
+let drawing = false;
+let path = [];
 
-        <section class="panel block">
-          <h2>図形を選ぶ</h2>
-          <div class="shape-grid" id="shapeGrid"></div>
-          <h2>現在の図形</h2>
-          <p class="message-box">タイトル画面で選んだ図形: <strong id="selectedShapeLabel">円</strong></p>
-        </section>
+function setShape(s){
+  shape = s;
+}
 
-        <section class="panel block">
-          <h2>メッセージ</h2>
-          <p id="messageBox" class="message-box">
-            図形を選んで「はじめる」を押すとゲームが始まります。
-            スタートするとここにゲームの案内が表示されます。
-          </p>
-        </section>
+// 牛クラス
+function createCow(){
+  return {
+    x: Math.random()*window.innerWidth,
+    y: Math.random()*window.innerHeight,
+    vx: (Math.random()-0.5)*1,
+    vy: (Math.random()-0.5)*1
+  };
+}
 
-        <section class="panel actions">
-          <button id="startButton" class="primary-button">はじめる</button>
-          <button id="resetButton" class="secondary-button">牛の動きをリセット</button>
-          <button id="backButton" class="secondary-button">タイトルへ戻る</button>
-        </section>
-      </aside>
-    </main>
+function startGame(){
+  document.getElementById("menu").style.display="none";
+  canvas.style.display="block";
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  cows = [createCow(), createCow(), createCow()];
+
+  requestAnimationFrame(loop);
+}
+
+// 描画ループ
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // 草原
+  ctx.fillStyle = "#88cc66";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // 牛
+  cows.forEach(c=>{
+    c.x += c.vx;
+    c.y += c.vy;
+
+    if(c.x<0||c.x>canvas.width) c.vx*=-1;
+    if(c.y<0||c.y>canvas.height) c.vy*=-1;
+
+    ctx.fillStyle="brown";
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,15,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  // 描画中の線
+  if(path.length>1){
+    ctx.strokeStyle="black";
+    ctx.beginPath();
+    ctx.moveTo(path[0].x,path[0].y);
+    path.forEach(p=>ctx.lineTo(p.x,p.y));
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+// 入力処理
+canvas.addEventListener("mousedown", startDraw);
+canvas.addEventListener("touchstart", startDraw);
+
+canvas.addEventListener("mousemove", draw);
+canvas.addEventListener("touchmove", draw);
+
+canvas.addEventListener("mouseup", endDraw);
+canvas.addEventListener("touchend", endDraw);
+
+function getPos(e){
+  if(e.touches){
+    return {
+      x:e.touches[0].clientX,
+      y:e.touches[0].clientY
+    };
+  }
+  return {x:e.clientX,y:e.clientY};
+}
+
+function startDraw(e){
+  drawing = true;
+  path = [];
+}
+
+function draw(e){
+  if(!drawing) return;
+  const pos = getPos(e);
+  path.push(pos);
+}
+
+function endDraw(){
+  drawing=false;
+
+  // 判定（簡易：全牛がポリゴン内か）
+  if(path.length<3) return;
+
+  let insideAll = cows.every(c=>pointInPolygon(c, path));
+
+  if(insideAll){
+    alert("クリア！");
+    location.reload();
+  }
+}
+
+// 点がポリゴン内か
+function pointInPolygon(point, vs) {
+  let x = point.x, y = point.y;
+  let inside = false;
+  for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+    let xi = vs[i].x, yi = vs[i].y;
+    let xj = vs[j].x, yj = vs[j].y;
+
+    let intersect = ((yi > y) != (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+</script>
+
+</body>
+</html>
