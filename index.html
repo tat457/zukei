@@ -15,7 +15,6 @@ canvas { display:none; background:#88cc66; }
 
 <div id="menu">
   <h1>牛囲いゲーム</h1>
-
   <button onclick="changeShape()">図形: <span id="shapeName">円</span></button>
   <br><br>
   <button onclick="startGame()">スタート</button>
@@ -48,7 +47,8 @@ function createCow(){
     y: Math.random()*window.innerHeight,
     vx: (Math.random()-0.5)*2,
     vy: (Math.random()-0.5)*2,
-    angle: 0
+    angle: 0,
+    radius: 15
   };
 }
 
@@ -67,7 +67,6 @@ function startGame(){
 function loop(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // 草原
   ctx.fillStyle="#88cc66";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -83,7 +82,7 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// 牛移動
+// 牛移動（柵で反射）
 function moveCow(c){
   c.x += c.vx;
   c.y += c.vy;
@@ -92,36 +91,47 @@ function moveCow(c){
   if(c.x<0||c.x>canvas.width) c.vx*=-1;
   if(c.y<0||c.y>canvas.height) c.vy*=-1;
 
-  // 柵反射
-  if(fence && pointInPolygon(c, fence)){
-    c.vx *= -1;
-    c.vy *= -1;
-    c.x += c.vx*2;
-    c.y += c.vy*2;
+  // 柵との衝突
+  if(fence){
+    for(let i=0;i<fence.length;i++){
+      let p1 = fence[i];
+      let p2 = fence[(i+1)%fence.length];
+
+      let dist = pointToSegmentDistance(c.x, c.y, p1.x, p1.y, p2.x, p2.y);
+
+      if(dist < c.radius){
+        // 逆方向へ
+        c.vx *= -1;
+        c.vy *= -1;
+
+        // めり込み防止
+        c.x += c.vx * 3;
+        c.y += c.vy * 3;
+
+        break;
+      }
+    }
   }
 
   c.angle = Math.atan2(c.vy, c.vx);
 }
 
-// 牛描画（簡易リアル風）
+// 牛描画
 function drawCow(c){
   ctx.save();
   ctx.translate(c.x, c.y);
   ctx.rotate(c.angle);
 
-  // 体
   ctx.fillStyle="#5a3d2b";
   ctx.beginPath();
   ctx.ellipse(0,0,20,12,0,0,Math.PI*2);
   ctx.fill();
 
-  // 頭
   ctx.fillStyle="#3d2a1f";
   ctx.beginPath();
   ctx.arc(20,0,8,0,Math.PI*2);
   ctx.fill();
 
-  // 足
   ctx.strokeStyle="#000";
   ctx.beginPath();
   ctx.moveTo(-10,10); ctx.lineTo(-10,20);
@@ -170,7 +180,7 @@ function getPos(e){
   return {x:e.clientX,y:e.clientY};
 }
 
-function startDraw(e){
+function startDraw(){
   drawing=true;
   path=[];
 }
@@ -186,7 +196,6 @@ function endDraw(){
 
   fence = path;
 
-  // クリア判定
   let insideAll = cows.every(c=>pointInPolygon(c, fence));
   if(insideAll){
     setTimeout(()=>alert("クリア！"),100);
@@ -206,6 +215,35 @@ function pointInPolygon(point, vs) {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+// 点と線分距離
+function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+  let A = px - x1;
+  let B = py - y1;
+  let C = x2 - x1;
+  let D = y2 - y1;
+
+  let dot = A * C + B * D;
+  let len_sq = C * C + D * D;
+  let param = len_sq !== 0 ? dot / len_sq : -1;
+
+  let xx, yy;
+
+  if (param < 0) {
+    xx = x1;
+    yy = y1;
+  } else if (param > 1) {
+    xx = x2;
+    yy = y2;
+  } else {
+    xx = x1 + param * C;
+    yy = y1 + param * D;
+  }
+
+  let dx = px - xx;
+  let dy = py - yy;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 </script>
 
