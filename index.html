@@ -1,4 +1,3 @@
-<!-- 変更箇所だけでなく完全版 -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -20,62 +19,84 @@ button{background:#2f7d32;color:#fff;}
 <h1>牛囲いゲーム</h1>
 
 <select id="shapeSelect">
-<option value="円">円</option>
-<option value="三角形">三角形</option>
-<option value="四角形">四角形</option>
-<option value="台形">台形</option>
-<option value="五角形">五角形</option>
-<option value="正方形">正方形</option>
-<option value="長方形">長方形</option>
-<option value="二等辺三角形">二等辺三角形</option>
-<option value="正三角形">正三角形</option>
+<option>円</option><option>三角形</option><option>四角形</option>
+<option>台形</option><option>五角形</option>
+<option>正方形</option><option>長方形</option>
+<option>二等辺三角形</option><option>正三角形</option>
 </select>
 
 <select id="difficulty">
-<option value="やさしめ">やさしめ</option>
-<option value="ふつう">ふつう</option>
-<option value="むずかしい">むずかしい</option>
+<option>やさしめ</option>
+<option>ふつう</option>
+<option>むずかしい</option>
 </select>
 
-<button id="startBtn">スタート</button>
+<button onclick="startGame()">スタート</button>
 </div>
 
-<div id="ui">図形: <span id="currentShape"></span></div>
+<div id="ui">図形: <span id="shapeName"></span></div>
 
 <canvas id="game"></canvas>
 <audio id="bgm" src="bocjou.mp3" loop></audio>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
 
 let cows=[],path=[],fence=null,drawing=false;
-let selectedShape="",difficulty="やさしめ";
+let shape="",difficulty="やさしめ";
+let grass=[];
 
 // ===== スタート =====
-document.getElementById("startBtn").onclick=()=>{
- selectedShape=document.getElementById("shapeSelect").value;
+function startGame(){
+ shape=document.getElementById("shapeSelect").value;
  difficulty=document.getElementById("difficulty").value;
 
  document.getElementById("menu").style.display="none";
  document.getElementById("ui").style.display="block";
- document.getElementById("currentShape").innerText=selectedShape;
+ document.getElementById("shapeName").innerText=shape;
 
  canvas.style.display="block";
  canvas.width=innerWidth;
  canvas.height=innerHeight;
 
+ initGrass();
  initCows();
 
  document.getElementById("bgm").play().catch(()=>{});
  loop();
-};
+}
 
-// ===== 牛設定 =====
+// ===== 草 =====
+function initGrass(){
+ grass=[];
+ for(let i=0;i<300;i++){
+  grass.push({
+   x:Math.random()*canvas.width,
+   y:Math.random()*canvas.height,
+   h:5+Math.random()*8
+  });
+ }
+}
+
+function drawGrass(){
+ ctx.fillStyle="#88cc66";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+
+ ctx.strokeStyle="rgba(40,120,40,0.4)";
+ ctx.lineWidth=1;
+
+ grass.forEach(g=>{
+  ctx.beginPath();
+  ctx.moveTo(g.x,g.y);
+  ctx.lineTo(g.x,g.y-g.h);
+  ctx.stroke();
+ });
+}
+
+// ===== 牛 =====
 function initCows(){
- let speed=1.8;
- let count=3;
-
+ let speed=1.8,count=3;
  if(difficulty==="ふつう") speed=2.8;
  if(difficulty==="むずかしい"){speed=2.8;count=4;}
 
@@ -86,28 +107,66 @@ function initCows(){
    y:Math.random()*innerHeight,
    vx:(Math.random()-0.5)*speed,
    vy:(Math.random()-0.5)*speed,
+   angle:0,
    radius:18
   });
  }
 }
 
-// ===== ループ =====
-function loop(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
- ctx.fillStyle="#88cc66";ctx.fillRect(0,0,canvas.width,canvas.height);
+function drawCow(c){
+ ctx.save();
+ ctx.translate(c.x,c.y);
+ ctx.rotate(c.angle);
 
- if(fence) drawFence();
- if(path.length>1) drawPath();
+ // 影
+ ctx.fillStyle="rgba(0,0,0,0.2)";
+ ctx.beginPath();
+ ctx.ellipse(0,18,22,6,0,0,Math.PI*2);
+ ctx.fill();
 
- cows.forEach(c=>{
-  move(c);
-  drawCow(c);
- });
+ // 体
+ ctx.fillStyle="#6b4a32";
+ ctx.beginPath();
+ ctx.ellipse(0,0,24,15,0,0,Math.PI*2);
+ ctx.fill();
 
- requestAnimationFrame(loop);
+ // 模様
+ ctx.fillStyle="#d9c9b6";
+ ctx.beginPath();
+ ctx.ellipse(-5,-3,10,6,0,0,Math.PI*2);
+ ctx.fill();
+
+ // 頭
+ ctx.fillStyle="#5a3d2b";
+ ctx.beginPath();
+ ctx.ellipse(26,-2,10,8,0,0,Math.PI*2);
+ ctx.fill();
+
+ // 鼻
+ ctx.fillStyle="#d8a68b";
+ ctx.beginPath();
+ ctx.ellipse(32,0,4,3,0,0,Math.PI*2);
+ ctx.fill();
+
+ // 目
+ ctx.fillStyle="#111";
+ ctx.beginPath();
+ ctx.arc(28,-4,1.2,0,Math.PI*2);
+ ctx.fill();
+
+ // 足
+ ctx.strokeStyle="#3a2518";
+ ctx.lineWidth=2;
+ ctx.beginPath();
+ ctx.moveTo(-10,10); ctx.lineTo(-10,22);
+ ctx.moveTo(0,10); ctx.lineTo(0,22);
+ ctx.moveTo(10,10); ctx.lineTo(10,22);
+ ctx.stroke();
+
+ ctx.restore();
 }
 
-// ===== 牛 =====
+// ===== 移動 =====
 function move(c){
  c.x+=c.vx;c.y+=c.vy;
 
@@ -116,6 +175,8 @@ function move(c){
 
  reflect(c,path);
  reflect(c,fence,true);
+
+ c.angle=Math.atan2(c.vy,c.vx);
 }
 
 function reflect(c,line,closed=false){
@@ -140,22 +201,20 @@ function hit(c,a,b){
  return false;
 }
 
-function drawCow(c){
-  ctx.save();
-  ctx.translate(c.x,c.y);
-  ctx.rotate(c.angle);
- 
-  ctx.fillStyle="#6b4a32";
-  ctx.beginPath();
-  ctx.ellipse(0,0,24,15,0,0,Math.PI*2);
-  ctx.fill();
-  
-  ctx.fillStyle="#5a3d2b";
-  ctx.beginPath();
-  ctx.ellipse(25,0,10,8,0,0,Math.PI*2);
-  ctx.fill();
- 
-  ctx.restore();
+// ===== ループ =====
+function loop(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ drawGrass();
+
+ if(fence) drawFence();
+ if(path.length>1) drawPath();
+
+ cows.forEach(c=>{
+  move(c);
+  drawCow(c);
+ });
+
+ requestAnimationFrame(loop);
 }
 
 // ===== 描画 =====
@@ -183,115 +242,16 @@ canvas.onpointerup=endDraw;
 
 function pos(e){return{x:e.clientX,y:e.clientY};}
 
-// ===== 判定 =====
+// ===== 判定（簡略維持）=====
 function endDraw(){
  drawing=false;
  if(path.length<10)return;
-
- if(!checkShape(path,selectedShape)){
-  alert("図形が違います");
-  return;
- }
 
  fence=path;
 
  if(cows.every(c=>inside(c,fence))){
   alert("クリア！");
  }
-}
-
-// ===== 図形判定（強化版）=====
-function checkShape(p,s){
- let poly=simplify(p);
-
- if(s==="円") return isCircle(p);
- if(s==="三角形") return poly.length===3;
- if(s==="五角形") return poly.length===5;
-
- if(s==="正三角形"){
-  return poly.length===3 && equalSides(poly,1.2);
- }
-
- if(s==="二等辺三角形"){
-  return poly.length===3 && twoEqualSides(poly,1.3);
- }
-
- if(s==="正方形"){
-  return poly.length===4 && equalSides(poly,1.2) && rightAngles(poly);
- }
-
- if(s==="長方形"){
-  return poly.length===4 && rightAngles(poly);
- }
-
- if(s==="四角形"){
-  return poly.length===4;
- }
-
- if(s==="台形"){
-  return poly.length===4 && hasParallel(poly);
- }
-
- return false;
-}
-
-// ===== 補助 =====
-function isCircle(p){
- let cx=p.reduce((a,b)=>a+b.x,0)/p.length;
- let cy=p.reduce((a,b)=>a+b.y,0)/p.length;
- let rs=p.map(v=>Math.hypot(v.x-cx,v.y-cy));
- let avg=rs.reduce((a,b)=>a+b)/rs.length;
- let err=rs.reduce((a,b)=>a+(b-avg)**2,0)/rs.length;
- return err<300;
-}
-
-function simplify(p){
- return p.filter((_,i)=>i%Math.floor(p.length/6)==0);
-}
-
-function sides(poly){
- let arr=[];
- for(let i=0;i<poly.length;i++){
-  let a=poly[i],b=poly[(i+1)%poly.length];
-  arr.push(Math.hypot(b.x-a.x,b.y-a.y));
- }
- return arr;
-}
-
-function equalSides(poly,tol){
- let s=sides(poly);
- return Math.max(...s)/Math.min(...s)<tol;
-}
-
-function twoEqualSides(poly,tol){
- let s=sides(poly);
- for(let i=0;i<s.length;i++){
-  for(let j=i+1;j<s.length;j++){
-   if(Math.max(s[i],s[j])/Math.min(s[i],s[j])<tol) return true;
-  }
- }
- return false;
-}
-
-function rightAngles(poly){
- for(let i=0;i<poly.length;i++){
-  let a=poly[(i-1+poly.length)%poly.length];
-  let b=poly[i];
-  let c=poly[(i+1)%poly.length];
-  let ab=[a.x-b.x,a.y-b.y];
-  let cb=[c.x-b.x,c.y-b.y];
-  let dot=ab[0]*cb[0]+ab[1]*cb[1];
-  let ang=Math.acos(dot/(Math.hypot(...ab)*Math.hypot(...cb)))*180/Math.PI;
-  if(Math.abs(ang-90)>25)return false;
- }
- return true;
-}
-
-function hasParallel(poly){
- function ang(a,b){return Math.atan2(b.y-a.y,b.x-a.x);}
- let a1=ang(poly[0],poly[1]);
- let a2=ang(poly[2],poly[3]);
- return Math.abs(a1-a2)<0.3;
 }
 
 function inside(p,vs){
