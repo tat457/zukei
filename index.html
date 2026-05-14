@@ -108,96 +108,112 @@ function initCows(){
    vx:(Math.random()-0.5)*speed,
    vy:(Math.random()-0.5)*speed,
    angle:0,
-   radius:18
+   radius:18,
+   lastHit:0 // ←追加
   });
  }
 }
 
+// ===== 牛描画 =====
 function drawCow(c){
  ctx.save();
  ctx.translate(c.x,c.y);
  ctx.rotate(c.angle);
 
- // 影
  ctx.fillStyle="rgba(0,0,0,0.2)";
  ctx.beginPath();
  ctx.ellipse(0,18,22,6,0,0,Math.PI*2);
  ctx.fill();
 
- // 体
  ctx.fillStyle="#6b4a32";
  ctx.beginPath();
  ctx.ellipse(0,0,24,15,0,0,Math.PI*2);
  ctx.fill();
 
- // 模様
  ctx.fillStyle="#d9c9b6";
  ctx.beginPath();
  ctx.ellipse(-5,-3,10,6,0,0,Math.PI*2);
  ctx.fill();
 
- // 頭
  ctx.fillStyle="#5a3d2b";
  ctx.beginPath();
  ctx.ellipse(26,-2,10,8,0,0,Math.PI*2);
  ctx.fill();
-
- // 鼻
- ctx.fillStyle="#d8a68b";
- ctx.beginPath();
- ctx.ellipse(32,0,4,3,0,0,Math.PI*2);
- ctx.fill();
-
- // 目
- ctx.fillStyle="#111";
- ctx.beginPath();
- ctx.arc(28,-4,1.2,0,Math.PI*2);
- ctx.fill();
-
- // 足
- ctx.strokeStyle="#3a2518";
- ctx.lineWidth=2;
- ctx.beginPath();
- ctx.moveTo(-10,10); ctx.lineTo(-10,22);
- ctx.moveTo(0,10); ctx.lineTo(0,22);
- ctx.moveTo(10,10); ctx.lineTo(10,22);
- ctx.stroke();
 
  ctx.restore();
 }
 
 // ===== 移動 =====
 function move(c){
- c.x+=c.vx;c.y+=c.vy;
 
- if(c.x<0||c.x>canvas.width)c.vx*=-1;
- if(c.y<0||c.y>canvas.height)c.vy*=-1;
+ // 分割移動（すり抜け防止）
+ for(let i=0;i<2;i++){
+  c.x+=c.vx*0.5;
+  c.y+=c.vy*0.5;
 
- reflect(c,path);
- reflect(c,fence,true);
+  if(c.x<0||c.x>canvas.width)c.vx*=-1;
+  if(c.y<0||c.y>canvas.height)c.vy*=-1;
+
+  reflect(c,path);
+  reflect(c,fence,true);
+ }
 
  c.angle=Math.atan2(c.vy,c.vx);
 }
 
+// ===== 反射 =====
 function reflect(c,line,closed=false){
  if(!line||line.length<2)return;
+
+ const now=performance.now();
+ if(now-c.lastHit<80)return;
+
  for(let i=0;i<line.length-1;i++){
-  if(hit(c,line[i],line[i+1]))return;
+  if(hit(c,line[i],line[i+1])){
+   c.lastHit=now;
+   return;
+  }
  }
- if(closed) hit(c,line[line.length-1],line[0]);
+
+ if(closed){
+  if(hit(c,line[line.length-1],line[0])){
+   c.lastHit=now;
+  }
+ }
 }
 
+// ===== 衝突（強化版）=====
 function hit(c,a,b){
+
+ const thickness=12;
+
  let t=((c.x-a.x)*(b.x-a.x)+(c.y-a.y)*(b.y-a.y))/((b.x-a.x)**2+(b.y-a.y)**2||1);
  t=Math.max(0,Math.min(1,t));
- let x=a.x+(b.x-a.x)*t,y=a.y+(b.y-a.y)*t;
- let dx=c.x-x,dy=c.y-y,d=Math.hypot(dx,dy);
- if(d<c.radius){
-  let nx=dx/(d||1),ny=dy/(d||1);
+
+ let x=a.x+(b.x-a.x)*t;
+ let y=a.y+(b.y-a.y)*t;
+
+ let dx=c.x-x;
+ let dy=c.y-y;
+ let dist=Math.hypot(dx,dy);
+
+ if(dist < c.radius + thickness){
+
+  let nx=dx/(dist||1);
+  let ny=dy/(dist||1);
+
   let dot=c.vx*nx+c.vy*ny;
-  c.vx-=2*dot*nx;c.vy-=2*dot*ny;
+  c.vx-=2*dot*nx;
+  c.vy-=2*dot*ny;
+
+  // 押し戻し
+  let push=(c.radius+thickness-dist)+1;
+  c.x+=nx*push;
+  c.y+=ny*push;
+
   return true;
  }
+
  return false;
 }
 
@@ -242,7 +258,7 @@ canvas.onpointerup=endDraw;
 
 function pos(e){return{x:e.clientX,y:e.clientY};}
 
-// ===== 判定（簡略維持）=====
+// ===== 判定 =====
 function endDraw(){
  drawing=false;
  if(path.length<10)return;
