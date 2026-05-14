@@ -286,181 +286,106 @@ function pos(e){return{x:e.clientX,y:e.clientY};}
 // ===== 図形判定 =====
 
 function endDraw(){
-
  drawing=false;
-
  if(path.length<10)return;
 
  if(!checkShape(path,shape)){
-
   alert("選択した図形になっていません");
-
   return;
-
  }
 
  fence=path;
 
  if(cows.every(c=>inside(c,fence))){
-
   alert("クリア！");
-
  }
-
 }
 
 function checkShape(p,s){
-
  let poly=simplify(p);
 
  if(s==="円") return isCircle(p);
-
  if(s==="三角形") return poly.length===3;
-
  if(s==="四角形") return poly.length===4;
-
  if(s==="五角形") return poly.length===5;
-
  if(s==="正三角形") return poly.length===3 && equalSides(poly,1.2);
-
  if(s==="二等辺三角形") return poly.length===3 && twoEqualSides(poly,1.3);
-
  if(s==="正方形") return poly.length===4 && equalSides(poly,1.2) && rightAngles(poly);
-
  if(s==="長方形") return poly.length===4 && rightAngles(poly);
-
  if(s==="台形") return poly.length===4 && hasParallel(poly);
 
  return false;
-
 }
 
 // ===== 判定補助 =====
-
 function isCircle(p){
-
  let cx=p.reduce((a,b)=>a+b.x,0)/p.length;
-
  let cy=p.reduce((a,b)=>a+b.y,0)/p.length;
-
  let rs=p.map(v=>Math.hypot(v.x-cx,v.y-cy));
-
  let avg=rs.reduce((a,b)=>a+b)/rs.length;
-
  let err=rs.reduce((a,b)=>a+(b-avg)**2,0)/rs.length;
-
  return err<300;
-
 }
 
 function simplify(p){
-
  return p.filter((_,i)=>i%Math.floor(p.length/6)==0);
-
 }
 
 function sides(poly){
-
  let arr=[];
-
  for(let i=0;i<poly.length;i++){
-
   let a=poly[i],b=poly[(i+1)%poly.length];
-
   arr.push(Math.hypot(b.x-a.x,b.y-a.y));
-
  }
-
  return arr;
-
 }
 
 function equalSides(poly,tol){
-
  let s=sides(poly);
-
  return Math.max(...s)/Math.min(...s)<tol;
-
 }
 
 function twoEqualSides(poly,tol){
-
  let s=sides(poly);
-
  for(let i=0;i<s.length;i++){
-
   for(let j=i+1;j<s.length;j++){
-
    if(Math.max(s[i],s[j])/Math.min(s[i],s[j])<tol) return true;
-
   }
-
  }
-
  return false;
-
 }
 
 function rightAngles(poly){
-
  for(let i=0;i<poly.length;i++){
-
   let a=poly[(i-1+poly.length)%poly.length];
-
   let b=poly[i];
-
   let c=poly[(i+1)%poly.length];
-
   let ab=[a.x-b.x,a.y-b.y];
-
   let cb=[c.x-b.x,c.y-b.y];
-
   let dot=ab[0]*cb[0]+ab[1]*cb[1];
-
   let ang=Math.acos(dot/(Math.hypot(...ab)*Math.hypot(...cb)))*180/Math.PI;
-
   if(Math.abs(ang-90)>25)return false;
-
  }
-
  return true;
-
 }
 
 function hasParallel(poly){
-
  function ang(a,b){return Math.atan2(b.y-a.y,b.x-a.x);}
-
  let a1=ang(poly[0],poly[1]);
-
  let a2=ang(poly[2],poly[3]);
-
  return Math.abs(a1-a2)<0.3;
-
 }
 
 function inside(p,vs){
-
  let inside=false;
-
  for(let i=0,j=vs.length-1;i<vs.length;j=i++){
-
   let xi=vs[i].x,yi=vs[i].y;
-
   let xj=vs[j].x,yj=vs[j].y;
-
   let inter=((yi>p.y)!=(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/(yj-yi)+xi);
-
   if(inter) inside=!inside;
-
  }
-
  return inside;
-
 }
-
 </script>
-
 </body>
-
 </html> 
