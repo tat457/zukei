@@ -47,7 +47,6 @@ let cows=[],path=[],fence=null,drawing=false;
 let shape="",difficulty="やさしめ";
 let grass=[];
 
-// ===== スタート =====
 function startGame(){
  shape=document.getElementById("shapeSelect").value;
  difficulty=document.getElementById("difficulty").value;
@@ -67,7 +66,6 @@ function startGame(){
  loop();
 }
 
-// ===== 草 =====
 function initGrass(){
  grass=[];
  for(let i=0;i<300;i++){
@@ -94,7 +92,6 @@ function drawGrass(){
  });
 }
 
-// ===== 牛 =====
 function initCows(){
  let speed=1.8,count=3;
  if(difficulty==="ふつう") speed=2.8;
@@ -109,54 +106,46 @@ function initCows(){
    vy:(Math.random()-0.5)*speed,
    angle:0,
    radius:18,
-   lastHit:0 // ←追加
+   lastHit:0
   });
  }
 }
 
-// ===== 牛描画 =====
 function drawCow(c){
  ctx.save();
  ctx.translate(c.x,c.y);
  ctx.rotate(c.angle);
 
- // 影
  ctx.fillStyle="rgba(0,0,0,0.2)";
  ctx.beginPath();
  ctx.ellipse(0,18,22,6,0,0,Math.PI*2);
  ctx.fill();
 
- // 体
  ctx.fillStyle="#6b4a32";
  ctx.beginPath();
  ctx.ellipse(0,0,24,15,0,0,Math.PI*2);
  ctx.fill();
 
- // 模様
  ctx.fillStyle="#d9c9b6";
  ctx.beginPath();
  ctx.ellipse(-5,-3,10,6,0,0,Math.PI*2);
  ctx.fill();
 
- // 頭
  ctx.fillStyle="#5a3d2b";
  ctx.beginPath();
  ctx.ellipse(26,-2,10,8,0,0,Math.PI*2);
  ctx.fill();
 
- // 鼻
  ctx.fillStyle="#d8a68b";
  ctx.beginPath();
  ctx.ellipse(32,0,4,3,0,0,Math.PI*2);
  ctx.fill();
 
- // 目
  ctx.fillStyle="#111";
  ctx.beginPath();
  ctx.arc(28,-4,1.2,0,Math.PI*2);
  ctx.fill();
 
- // 足
  ctx.strokeStyle="#3a2518";
  ctx.lineWidth=2;
  ctx.beginPath();
@@ -167,11 +156,8 @@ function drawCow(c){
 
  ctx.restore();
 }
- 
-// ===== 移動 =====
-function move(c){
 
- // 分割移動（すり抜け防止）
+function move(c){
  for(let i=0;i<2;i++){
   c.x+=c.vx*0.5;
   c.y+=c.vy*0.5;
@@ -186,7 +172,6 @@ function move(c){
  c.angle=Math.atan2(c.vy,c.vx);
 }
 
-// ===== 反射 =====
 function reflect(c,line,closed=false){
  if(!line||line.length<2)return;
 
@@ -200,16 +185,12 @@ function reflect(c,line,closed=false){
   }
  }
 
- if(closed){
-  if(hit(c,line[line.length-1],line[0])){
-   c.lastHit=now;
-  }
+ if(closed && hit(c,line[line.length-1],line[0])){
+  c.lastHit=now;
  }
 }
 
-// ===== 衝突（強化版）=====
 function hit(c,a,b){
-
  const thickness=12;
 
  let t=((c.x-a.x)*(b.x-a.x)+(c.y-a.y)*(b.y-a.y))/((b.x-a.x)**2+(b.y-a.y)**2||1);
@@ -223,7 +204,6 @@ function hit(c,a,b){
  let dist=Math.hypot(dx,dy);
 
  if(dist < c.radius + thickness){
-
   let nx=dx/(dist||1);
   let ny=dy/(dist||1);
 
@@ -231,7 +211,6 @@ function hit(c,a,b){
   c.vx-=2*dot*nx;
   c.vy-=2*dot*ny;
 
-  // 押し戻し
   let push=(c.radius+thickness-dist)+1;
   c.x+=nx*push;
   c.y+=ny*push;
@@ -242,7 +221,6 @@ function hit(c,a,b){
  return false;
 }
 
-// ===== ループ =====
 function loop(){
  ctx.clearRect(0,0,canvas.width,canvas.height);
  drawGrass();
@@ -258,9 +236,9 @@ function loop(){
  requestAnimationFrame(loop);
 }
 
-// ===== 描画 =====
 function drawPath(){
  ctx.strokeStyle="black";
+ ctx.lineWidth=3;
  ctx.beginPath();
  ctx.moveTo(path[0].x,path[0].y);
  path.forEach(p=>ctx.lineTo(p.x,p.y));
@@ -269,6 +247,7 @@ function drawPath(){
 
 function drawFence(){
  ctx.strokeStyle="brown";
+ ctx.lineWidth=5;
  ctx.beginPath();
  ctx.moveTo(fence[0].x,fence[0].y);
  fence.forEach(p=>ctx.lineTo(p.x,p.y));
@@ -276,116 +255,377 @@ function drawFence(){
  ctx.stroke();
 }
 
-// ===== 入力 =====
 canvas.onpointerdown=e=>{drawing=true;path=[pos(e)];};
 canvas.onpointermove=e=>{if(drawing)path.push(pos(e));};
 canvas.onpointerup=endDraw;
 
 function pos(e){return{x:e.clientX,y:e.clientY};}
 
-// ===== 図形判定 =====
-
 function endDraw(){
  drawing=false;
  if(path.length<10)return;
 
  if(!checkShape(path,shape)){
-  alert("選択した図形になっていません");
+  path=[];
+  alert("辺に隙間があるか、選択した図形になっていません");
   return;
  }
 
- fence=path;
+ fence=closeStroke(path);
+ path=[];
 
  if(cows.every(c=>inside(c,fence))){
   alert("クリア！");
  }
 }
 
-function checkShape(p,s){
- let poly=simplify(p);
+function checkShape(rawStroke,shapeName){
+ const analysis=analyzeStroke(rawStroke);
+ if(!analysis.closedEnough) return false;
 
- if(s==="円") return isCircle(p);
- if(s==="三角形") return poly.length===3;
- if(s==="四角形") return poly.length===4;
- if(s==="五角形") return poly.length===5;
- if(s==="正三角形") return poly.length===3 && equalSides(poly,1.2);
- if(s==="二等辺三角形") return poly.length===3 && twoEqualSides(poly,1.3);
- if(s==="正方形") return poly.length===4 && equalSides(poly,1.2) && rightAngles(poly);
- if(s==="長方形") return poly.length===4 && rightAngles(poly);
- if(s==="台形") return poly.length===4 && hasParallel(poly);
+ if(shapeName==="円"){
+  return isCircleShape(analysis);
+ }
+
+ const expectedCorners={
+  "三角形":3,
+  "二等辺三角形":3,
+  "正三角形":3,
+  "四角形":4,
+  "正方形":4,
+  "長方形":4,
+  "台形":4,
+  "五角形":5
+ };
+
+ const cornerCount=expectedCorners[shapeName];
+ const polygon=extractPolygon(analysis.points,cornerCount);
+ if(!polygon || polygon.length!==cornerCount) return false;
+ if(!isCleanPolygon(polygon, analysis.bbox, cornerCount)) return false;
+
+ if(shapeName==="三角形" || shapeName==="四角形" || shapeName==="五角形"){
+  return true;
+ }
+ if(shapeName==="正三角形"){
+  return equalSides(polygon,1.18);
+ }
+ if(shapeName==="二等辺三角形"){
+  return twoEqualSides(polygon,1.12);
+ }
+ if(shapeName==="長方形"){
+  return rightAngles(polygon,16);
+ }
+ if(shapeName==="正方形"){
+  return rightAngles(polygon,14) && equalSides(polygon,1.14);
+ }
+ if(shapeName==="台形"){
+  return isTrapezoid(polygon);
+ }
 
  return false;
 }
 
-// ===== 判定補助 =====
-function isCircle(p){
- let cx=p.reduce((a,b)=>a+b.x,0)/p.length;
- let cy=p.reduce((a,b)=>a+b.y,0)/p.length;
- let rs=p.map(v=>Math.hypot(v.x-cx,v.y-cy));
- let avg=rs.reduce((a,b)=>a+b)/rs.length;
- let err=rs.reduce((a,b)=>a+(b-avg)**2,0)/rs.length;
- return err<300;
+function analyzeStroke(rawStroke){
+ const points=normalizeStroke(rawStroke);
+ const first=points[0];
+ const last=points[points.length-1];
+ const closureGap=Math.hypot(last.x-first.x,last.y-first.y);
+ const perimeter=polylineLength(points,true);
+ const bbox=getBounds(points);
+ const size=Math.max(bbox.width,bbox.height,1);
+ const closedEnough=closureGap < Math.max(12,size*0.08);
+
+ return {points,closureGap,perimeter,bbox,closedEnough};
 }
 
-function simplify(p){
- return p.filter((_,i)=>i%Math.floor(p.length/6)==0);
+function closeStroke(rawStroke){
+ const points=normalizeStroke(rawStroke);
+ if(points.length<2) return points;
+
+ const first=points[0];
+ const last=points[points.length-1];
+ const gap=Math.hypot(last.x-first.x,last.y-first.y);
+ const bbox=getBounds(points);
+ const size=Math.max(bbox.width,bbox.height,1);
+
+ if(gap > Math.max(8,size*0.04)){
+  points.push({x:first.x,y:first.y});
+ }else{
+  points[points.length-1]={x:first.x,y:first.y};
+ }
+
+ return points;
+}
+
+function normalizeStroke(points){
+ const filtered=[points[0]];
+ for(let i=1;i<points.length;i++){
+  const prev=filtered[filtered.length-1];
+  if(Math.hypot(points[i].x-prev.x,points[i].y-prev.y)>=6){
+   filtered.push(points[i]);
+  }
+ }
+ return filtered.length >= 2 ? filtered : points.slice();
+}
+
+function extractPolygon(points,targetCorners){
+ const samples=resampleClosed(points,96);
+ if(samples.length < targetCorners * 8) return null;
+
+ const strengths=getCornerStrengths(samples);
+ let corners=pickCornerIndices(strengths,targetCorners,Math.floor(samples.length/(targetCorners+0.5)));
+ if(corners.length !== targetCorners){
+  corners=pickCornerIndices(strengths,targetCorners,Math.floor(samples.length/(targetCorners+1.2)));
+ }
+ if(corners.length !== targetCorners) return null;
+
+ const polygon=corners.map(index=>samples[index]);
+ return cleanupPolygon(polygon);
+}
+
+function resampleClosed(points,count){
+ const closed=closeStroke(points);
+ const lengths=[0];
+ let total=0;
+
+ for(let i=1;i<closed.length;i++){
+  total+=Math.hypot(closed[i].x-closed[i-1].x,closed[i].y-closed[i-1].y);
+  lengths.push(total);
+ }
+
+ if(total===0) return closed.slice(0,-1);
+
+ const result=[];
+ for(let i=0;i<count;i++){
+  const target=(total*i)/count;
+  let seg=1;
+  while(seg<lengths.length && lengths[seg]<target) seg++;
+  const prevLen=lengths[seg-1];
+  const nextLen=lengths[seg];
+  const ratio=(target-prevLen)/((nextLen-prevLen)||1);
+  const a=closed[seg-1];
+  const b=closed[seg];
+  result.push({
+   x:a.x+(b.x-a.x)*ratio,
+   y:a.y+(b.y-a.y)*ratio
+  });
+ }
+ return result;
+}
+
+function getCornerStrengths(points){
+ const n=points.length;
+ const window=Math.max(3,Math.floor(n/16));
+ const strengths=new Array(n).fill(0);
+
+ for(let i=0;i<n;i++){
+  const prev=points[(i-window+n)%n];
+  const curr=points[i];
+  const next=points[(i+window)%n];
+  const v1=[prev.x-curr.x,prev.y-curr.y];
+  const v2=[next.x-curr.x,next.y-curr.y];
+  const angle=angleBetween(v1,v2);
+  strengths[i]=180-angle;
+ }
+
+ return strengths;
+}
+
+function pickCornerIndices(strengths,targetCorners,minSpacing){
+ const candidates=[];
+ const threshold=36;
+ const n=strengths.length;
+
+ for(let i=0;i<n;i++){
+  const prev=strengths[(i-1+n)%n];
+  const next=strengths[(i+1)%n];
+  if(strengths[i] > threshold && strengths[i] >= prev && strengths[i] >= next){
+   candidates.push({index:i,strength:strengths[i]});
+  }
+ }
+
+ candidates.sort((a,b)=>b.strength-a.strength);
+ const chosen=[];
+
+ for(const candidate of candidates){
+  if(chosen.every(existing=>circularDistance(existing.index,candidate.index,n) >= minSpacing)){
+   chosen.push(candidate);
+   if(chosen.length===targetCorners) break;
+  }
+ }
+
+ return chosen.sort((a,b)=>a.index-b.index).map(candidate=>candidate.index);
+}
+
+function cleanupPolygon(points){
+ const cleaned=[];
+ for(let i=0;i<points.length;i++){
+  const prev=points[(i-1+points.length)%points.length];
+  const curr=points[i];
+  const next=points[(i+1)%points.length];
+  const turn=180-angleBetween([prev.x-curr.x,prev.y-curr.y],[next.x-curr.x,next.y-curr.y]);
+  if(turn > 18){
+   cleaned.push(curr);
+  }
+ }
+ return cleaned.length ? cleaned : points;
+}
+
+function isCircleShape(analysis){
+ const samples=resampleClosed(analysis.points,96);
+ const center={
+  x:samples.reduce((sum,p)=>sum+p.x,0)/samples.length,
+  y:samples.reduce((sum,p)=>sum+p.y,0)/samples.length
+ };
+ const radii=samples.map(p=>Math.hypot(p.x-center.x,p.y-center.y));
+ const avgRadius=radii.reduce((sum,r)=>sum+r,0)/radii.length;
+ const variance=radii.reduce((sum,r)=>sum+(r-avgRadius)**2,0)/radii.length;
+ const std=Math.sqrt(variance);
+ const area=Math.abs(polygonArea(samples));
+ const perimeter=polylineLength(samples,true);
+ const circularity=(4*Math.PI*area)/((perimeter*perimeter)||1);
+ const cornerPeaks=getCornerStrengths(samples).filter(value=>value>42).length;
+
+ return avgRadius>24 && std/avgRadius < 0.14 && circularity > 0.86 && cornerPeaks < 6;
+}
+
+function isCleanPolygon(poly,bbox,cornerCount){
+ const edgeLengths=sides(poly);
+ const longest=Math.max(...edgeLengths);
+ const shortest=Math.min(...edgeLengths);
+ const size=Math.max(bbox.width,bbox.height,1);
+
+ if(shortest < size*0.12) return false;
+ if(longest/shortest > 3.8 && cornerCount !== 4) return false;
+
+ for(let i=0;i<poly.length;i++){
+  const a=poly[(i-1+poly.length)%poly.length];
+  const b=poly[i];
+  const c=poly[(i+1)%poly.length];
+  const ang=angleBetween([a.x-b.x,a.y-b.y],[c.x-b.x,c.y-b.y]);
+  if(ang < 28 || ang > 152) return false;
+ }
+
+ return true;
 }
 
 function sides(poly){
- let arr=[];
+ const arr=[];
  for(let i=0;i<poly.length;i++){
-  let a=poly[i],b=poly[(i+1)%poly.length];
+  const a=poly[i];
+  const b=poly[(i+1)%poly.length];
   arr.push(Math.hypot(b.x-a.x,b.y-a.y));
  }
  return arr;
 }
 
 function equalSides(poly,tol){
- let s=sides(poly);
- return Math.max(...s)/Math.min(...s)<tol;
+ const values=sides(poly);
+ return Math.max(...values)/Math.min(...values) < tol;
 }
 
 function twoEqualSides(poly,tol){
- let s=sides(poly);
- for(let i=0;i<s.length;i++){
-  for(let j=i+1;j<s.length;j++){
-   if(Math.max(s[i],s[j])/Math.min(s[i],s[j])<tol) return true;
+ const values=sides(poly);
+ for(let i=0;i<values.length;i++){
+  for(let j=i+1;j<values.length;j++){
+   if(Math.max(values[i],values[j])/Math.min(values[i],values[j]) < tol){
+    return true;
+   }
   }
  }
  return false;
 }
 
-function rightAngles(poly){
+function rightAngles(poly,tolerance){
  for(let i=0;i<poly.length;i++){
-  let a=poly[(i-1+poly.length)%poly.length];
-  let b=poly[i];
-  let c=poly[(i+1)%poly.length];
-  let ab=[a.x-b.x,a.y-b.y];
-  let cb=[c.x-b.x,c.y-b.y];
-  let dot=ab[0]*cb[0]+ab[1]*cb[1];
-  let ang=Math.acos(dot/(Math.hypot(...ab)*Math.hypot(...cb)))*180/Math.PI;
-  if(Math.abs(ang-90)>25)return false;
+  const a=poly[(i-1+poly.length)%poly.length];
+  const b=poly[i];
+  const c=poly[(i+1)%poly.length];
+  const ang=angleBetween([a.x-b.x,a.y-b.y],[c.x-b.x,c.y-b.y]);
+  if(Math.abs(ang-90) > tolerance) return false;
  }
  return true;
 }
 
-function hasParallel(poly){
- function ang(a,b){return Math.atan2(b.y-a.y,b.x-a.x);}
- let a1=ang(poly[0],poly[1]);
- let a2=ang(poly[2],poly[3]);
- return Math.abs(a1-a2)<0.3;
+function isTrapezoid(poly){
+ if(poly.length!==4) return false;
+ if(!rightAngles(poly,55) && equalSides(poly,1.14)) return false;
+
+ const dirs=[];
+ for(let i=0;i<4;i++){
+  const a=poly[i];
+  const b=poly[(i+1)%4];
+  dirs.push(Math.atan2(b.y-a.y,b.x-a.x));
+ }
+
+ const pair1=parallelScore(dirs[0],dirs[2]);
+ const pair2=parallelScore(dirs[1],dirs[3]);
+
+ return (pair1 < 9 && pair2 > 14) || (pair2 < 9 && pair1 > 14);
+}
+
+function parallelScore(a,b){
+ let diff=Math.abs((a-b)*180/Math.PI)%180;
+ if(diff>90) diff=180-diff;
+ return diff;
+}
+
+function angleBetween(v1,v2){
+ const dot=v1[0]*v2[0]+v1[1]*v2[1];
+ const len=Math.hypot(v1[0],v1[1])*Math.hypot(v2[0],v2[1])||1;
+ const value=Math.max(-1,Math.min(1,dot/len));
+ return Math.acos(value)*180/Math.PI;
+}
+
+function circularDistance(a,b,size){
+ const diff=Math.abs(a-b);
+ return Math.min(diff,size-diff);
+}
+
+function polygonArea(points){
+ let area=0;
+ for(let i=0;i<points.length;i++){
+  const a=points[i];
+  const b=points[(i+1)%points.length];
+  area+=a.x*b.y-b.x*a.y;
+ }
+ return area/2;
+}
+
+function polylineLength(points,closed=false){
+ let total=0;
+ for(let i=1;i<points.length;i++){
+  total+=Math.hypot(points[i].x-points[i-1].x,points[i].y-points[i-1].y);
+ }
+ if(closed && points.length>1){
+  total+=Math.hypot(points[0].x-points[points.length-1].x,points[0].y-points[points.length-1].y);
+ }
+ return total;
+}
+
+function getBounds(points){
+ const xs=points.map(p=>p.x);
+ const ys=points.map(p=>p.y);
+ return {
+  minX:Math.min(...xs),
+  maxX:Math.max(...xs),
+  minY:Math.min(...ys),
+  maxY:Math.max(...ys),
+  width:Math.max(...xs)-Math.min(...xs),
+  height:Math.max(...ys)-Math.min(...ys)
+ };
 }
 
 function inside(p,vs){
- let inside=false;
+ let hitInside=false;
  for(let i=0,j=vs.length-1;i<vs.length;j=i++){
-  let xi=vs[i].x,yi=vs[i].y;
-  let xj=vs[j].x,yj=vs[j].y;
-  let inter=((yi>p.y)!=(yj>p.y))&&(p.x<(xj-xi)*(p.y-yi)/(yj-yi)+xi);
-  if(inter) inside=!inside;
+  const xi=vs[i].x, yi=vs[i].y;
+  const xj=vs[j].x, yj=vs[j].y;
+  const intersect=((yi>p.y)!==(yj>p.y)) && (p.x < ((xj-xi)*(p.y-yi))/((yj-yi)||1)+xi);
+  if(intersect) hitInside=!hitInside;
  }
- return inside;
+ return hitInside;
 }
 </script>
 </body>
-</html> 
+</html>
